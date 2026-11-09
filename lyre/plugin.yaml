@@ -1,0 +1,11 @@
+name: lyre
+version: 0.1.0
+description: Makes Hermes replies easy to follow with a screen reader. Rewrites markdown, emoji, tables and code into speakable text.
+author: Jason Zeng
+manifest_version: 2
+license: MIT
+homepage: https://github.com/jzeng151/hermes-lyre
+tags: [accessibility, screen-reader, gateway, messaging]
+requires_hermes: ">=0.23.0"
+provides_hooks:
+  - transform_llm_output
