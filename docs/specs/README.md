@@ -18,7 +18,7 @@ Each spec follows the spec-coding.dev templates: the SDD packet (spec, tasks, ev
 ## Issues without a spec
 
 - #1 Scaffold: setup work, done in its own session; the design doc's layout follows it.
-- #2 Baseline test: an investigation. Its result closes Q1 and Q2 in the formatter spec.
+- #2 Baseline test: an investigation, recorded in [docs/baseline](../baseline/README.md). It settled Q1, Q5 and Q6 in the formatter spec and answered Q2 for Telegram.
 - #18 README, #20 demo video, #21 user invitations: writing and outreach; requirements are in the issues.
 - #24 `write-for-ears` skill: content only, no behavior to specify.
 - #25 to #28 Future work: blocked on capabilities plugins lack; each issue records what would unblock it.
@@ -27,12 +27,9 @@ Each spec follows the spec-coding.dev templates: the SDD packet (spec, tasks, ev
 
 | Spec | Question | Resolved by |
 | --- | --- | --- |
-| speech-formatter | Q1 Code-fence rule per profile | #2 |
-| speech-formatter | Q2 Lists on markdown clients | #2, #13 |
+| speech-formatter | Q2 Lists on markdown clients (Telegram answered) | #13 |
 | speech-formatter | Q3 Markdown platform list | #13 |
 | speech-formatter | Q4 Table pass-through limits | #15 |
-| speech-formatter | Q5 Backticks and escape backslashes spoken aloud | #2 |
-| speech-formatter | Q6 Box-drawing characters in unfenced trees spoken aloud | #2 |
 | a11y-command | Q2 Surface for `local` commands | #16 |
 | plain-progress | Q1 to Q3 | Before starting #22 |
 | accessible-web-chat | Q1 to Q4 | Before starting #23 |
