@@ -217,17 +217,40 @@ def _protect_code_spans(line: str, stash: Stash) -> str:
     return "".join(out)
 
 
+def _target_end(line: str, k: int) -> int | None:
+    """Index just past the ``)`` that closes a link target starting at *k*, or None.
+
+    An angle-bracket destination and a quoted title are units, so parentheses inside them do
+    not count; a backslash escapes the next character.
+    """
+    if line.startswith("<", k):
+        close = line.find(">", k)
+        if close != -1:
+            k = close + 1
+    depth = 1
+    while k < len(line) and depth:
+        ch = line[k]
+        if ch in "\"'" and line[k - 1] in " \t":
+            close = line.find(ch, k + 1)
+            if close != -1:
+                k = close + 1
+                continue
+        if ch == "\\":
+            k += 2
+            continue
+        depth += {"(": 1, ")": -1}.get(ch, 0)
+        k += 1
+    return None if depth else k
+
+
 def _protect_link_targets(line: str, stash: Stash) -> str:
     out, pos = [], 0
     while True:
         j = line.find("](", pos)
         if j < 0:
             break
-        depth, k = 1, j + 2
-        while k < len(line) and depth:
-            depth += {"(": 1, ")": -1}.get(line[k], 0)
-            k += 1
-        if depth:
+        k = _target_end(line, j + 2)
+        if k is None:
             break
         out.append(line[pos:j + 2])
         out.append(stash.put("t", line[j + 2:k - 1]))
@@ -279,16 +302,32 @@ def protect_code_spans(lines: list[str], stash: Stash, skip) -> list[str]:
     return out
 
 
+def _sub_outside_urls(pattern: re.Pattern, kind: str, line: str, stash: Stash) -> str:
+    """Stash *pattern* matches, except those starting inside a bare URL (URLs are stashed whole later)."""
+    if "://" not in line:
+        return pattern.sub(lambda m: stash.put(kind, m.group(0)), line)
+    starts = [m.span() for m in URL_RE.finditer(line)]
+    ends = [end for _, end in starts]
+
+    def put(m: re.Match) -> str:
+        i = bisect.bisect_right(ends, m.start())
+        if i < len(starts) and starts[i][0] <= m.start():
+            return m.group(0)
+        return stash.put(kind, m.group(0))
+
+    return pattern.sub(put, line)
+
+
 def protect_inline(line: str, stash: Stash) -> str:
     """Protect inline code, inline display math, escapes, HTML tags, link targets and URLs."""
     if "`" in line:
         line = _protect_code_spans(line, stash)
     if "$$" in line:
-        line = INLINE_MATH_RE.sub(lambda m: stash.put("n", m.group(0)), line)
+        line = _sub_outside_urls(INLINE_MATH_RE, "n", line, stash)
     if "\\" in line:
-        line = ESCAPE_RE.sub(lambda m: stash.put("e", m.group(0)), line)
+        line = _sub_outside_urls(ESCAPE_RE, "e", line, stash)
     if "<" in line:
-        line = HTML_TAG_RE.sub(lambda m: stash.put("h", m.group(0)), line)
+        line = _sub_outside_urls(HTML_TAG_RE, "h", line, stash)
     if "](" in line:
         line = _protect_link_targets(line, stash)
     if "://" in line:

@@ -12,15 +12,28 @@ import re
 from ..model import Block, Options
 from . import InlineFn, register_block_rule
 
-_ATX_TEXT = re.compile(r"^ {0,3}#{1,6}(?:[ \t]+|$)(.*?)(?:[ \t]+#+)?[ \t]*$")
+_ATX_OPEN = re.compile(r"^ {0,3}#{1,6}(?:[ \t]+|$)")
 _END_PUNCT = (".", "!", "?", ":")
 
 
 def heading_text(block: Block) -> str:
     if block.meta.get("setext"):
         return " ".join(line.strip() for line in block.lines[:-1])  # every line above the underline
-    m = _ATX_TEXT.match(block.lines[0])
-    return m.group(1).strip() if m else block.lines[0].strip()
+    line = block.lines[0]
+    m = _ATX_OPEN.match(line)
+    if not m:
+        return line.strip()
+    return _strip_closing_hashes(line[m.end():].strip(" \t"))
+
+
+def _strip_closing_hashes(text: str) -> str:
+    """Drop an optional closing ``#`` run, which must follow a space or tab (linear scan)."""
+    body = text.rstrip("#")
+    if body == text:
+        return text
+    if not body:
+        return ""
+    return body.rstrip(" \t") if body[-1] in " \t" else text
 
 
 def headings(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:

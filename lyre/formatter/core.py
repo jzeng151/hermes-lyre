@@ -129,8 +129,17 @@ def _process(text: str, opts: Options, depth: int) -> str:
     for i, block in enumerate(blocks):
         block.meta["prev"] = blocks[i - 1].lines[-1] if i else None
         block.meta["next"] = blocks[i + 1].lines[0] if i + 1 < len(blocks) else None
+    prev_out, prev_changed = None, False  # last rendered line of the previous block
     for block in blocks:
         out = _render(block, opts, depth)
+        first = block.lines[0] if out is None else (out[0] if out else None)
+        changed = out is not None
+        if first is not None and (changed or prev_changed) and _exposed_at_boundary(first, prev_out):
+            entries.append(("", True))  # keep the blocks apart (a new Setext underline or table)
+        if block.kind == "blank":
+            prev_out, prev_changed = None, False
+        elif out != []:
+            prev_out, prev_changed = (block.lines if out is None else out)[-1], changed
         if out is None:
             entries.extend((line, False) for line in block.lines)
         elif not out:
@@ -147,6 +156,19 @@ def _process(text: str, opts: Options, depth: int) -> str:
     for line in _normalize(entries):
         final.extend(stash.restore(line))
     return "\n".join(final)
+
+
+def _exposed_at_boundary(first: str, prev_out: str | None) -> bool:
+    """True when a block's first line gains block syntax from the rendered line above it.
+
+    Each block is guarded on its own (step 6); this catches what only the neighbour shows, such
+    as ``===`` becoming the underline of a heading rewritten into a paragraph line. In the input
+    a block boundary never carries such syntax (the segmenter would have joined the lines), so
+    any gain is new. Only checked where one of the two blocks changed.
+    """
+    if prev_out is None or not prev_out.strip():
+        return False
+    return bool(syntax_categories(first, prev_out) - syntax_categories(first, None))
 
 
 def _inline_fn(opts: Options):

@@ -318,3 +318,41 @@ def test_guard_catches_table_exposed_without_leading_pipe(temp_rules):
     add_inline("strip", lambda t, o: t.replace("**", ""))
     text = "a|b\n**---|---**"
     assert format_for_speech(text, profile="plain") is text
+
+
+def test_angle_bracket_link_target_with_parenthesis_is_protected(temp_rules):
+    add_inline, _ = temp_rules
+    add_inline("strip", lambda t, o: t.replace("**", ""))
+    text = "[label](<https://example.test/a)b/**literal**>) and **x**"
+    assert format_for_speech(text, profile="plain") == "[label](<https://example.test/a)b/**literal**>) and x"
+
+
+def test_quoted_title_with_parenthesis_is_protected(temp_rules):
+    add_inline, _ = temp_rules
+    add_inline("strip", lambda t, o: t.replace("**", ""))
+    text = '[a](https://x.test "t) **y**") **z**'
+    assert format_for_speech(text, profile="plain") == '[a](https://x.test "t) **y**") z'
+
+
+def test_url_with_math_like_text_is_protected_whole(temp_rules):
+    add_inline, _ = temp_rules
+    add_inline("strip", lambda t, o: t.replace("**", ""))
+    text = "https://example.test/a$$x$$/**literal**/z and **x**"
+    assert format_for_speech(text, profile="plain") == "https://example.test/a$$x$$/**literal**/z and x"
+
+
+def test_setext_exposed_across_blocks_gets_a_blank_line(temp_rules):
+    add_inline, add_block = temp_rules
+    add_inline("strip", lambda t, o: t.replace("**", ""))
+    add_block("heading", lambda b, o, i: ["heading"])
+    once = format_for_speech("# Title\n**===**", profile="plain")
+    assert once == "heading\n\n==="
+    assert format_for_speech(once, profile="plain") == once
+
+
+def test_pipe_less_short_row_stays_in_table(temp_rules):
+    _, add_block = temp_rules
+    seen = []
+    add_block("table", lambda b, o, i: seen.append(list(b.lines)))
+    format_for_speech("| Name | Stock |\n|---|---|\nAlpha\n| Beta | 4 |\n\nAfter", profile="plain")
+    assert seen == [["| Name | Stock |", "|---|---|", "Alpha", "| Beta | 4 |"]]
