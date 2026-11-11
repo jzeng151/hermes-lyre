@@ -110,3 +110,10 @@ def test_review_round_two_links(text, expected):
 
 def test_destination_holding_a_protected_span_stays():
     assert format_for_speech("[docs](<guide>)\n\n**bold**", profile="plain") == "[docs](<guide>)\n\nbold"
+
+
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_autolink_followed_by_text_keeps_its_boundary(profile):
+    out = format_for_speech("<https://x.test>suffix", profile=profile)
+    assert out == "https://x.test suffix"
+    assert format_for_speech(out, profile=profile) == out

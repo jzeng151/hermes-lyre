@@ -112,7 +112,7 @@ def test_emphasis_inside_strikethrough(text):
 
 
 def test_quoted_code_keeps_trailing_spaces():
-    assert plain("> ```py\n> x = 1  \n> ```") == "Python code, 1 line:\n```py\nx = 1  \n```\nEnd of code."
+    assert plain("> ```py\n> x = 1  \n> ```") == "> Python code, 1 line:\n> ```py\n> x = 1  \n> ```\n> End of code."
 
 
 def test_over_depth_quote_left_whole():
@@ -171,7 +171,7 @@ def test_quote_markdown_profile_keeps_markers_and_cleans_strikethrough():
 def test_quoted_code_survives_marker_removal():
     text = "> intro **a**\n>\n> ```py\n> x = '**y**'\n> ```"
     out = plain(text)
-    assert out == "intro a\n\nPython code, 1 line:\n```py\nx = '**y**'\n```\nEnd of code."
+    assert out == "> intro a\n>\n> Python code, 1 line:\n> ```py\n> x = '**y**'\n> ```\n> End of code."
 
 
 CASES = [
@@ -223,4 +223,11 @@ def test_quoted_code_or_math_after_text_stays_quoted(text):
     once = plain(text)
     assert "    **code**" in once.split("\n")
     assert any(line.startswith(">") for line in once.split("\n"))
+    assert plain(once) == once
+
+
+@pytest.mark.parametrize("text", ["***\n> $$x$$", "***\n> ```\n> x\n> ```"])
+def test_quoted_code_or_math_is_stable_when_text_above_is_removed(text):
+    once = plain(text)
+    assert once.startswith(">")
     assert plain(once) == once

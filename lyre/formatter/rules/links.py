@@ -33,6 +33,12 @@ def _target_url(value: str) -> str:
     return parts[0] if parts else value
 
 
+def _glued(m: re.Match) -> bool:
+    """True when text directly after the match would run into a URL emitted in its place."""
+    after = m.string[m.end():m.end() + 1]
+    return bool(after) and not after.isspace() and after not in _URL_END
+
+
 def _survives(url: str) -> bool:
     """True when the next pass protects *url* whole as a bare URL, so no rule can change it."""
     if OPEN in url or CLOSE in url:
@@ -45,7 +51,8 @@ def _survives(url: str) -> bool:
 def links(text: str, opts: Options) -> str:
     if OPEN not in text:
         return text
-    text = _AUTOLINK_RE.sub(r"\1", text)
+    # Removing the brackets must not glue following text onto the URL (``<u>suffix``).
+    text = _AUTOLINK_RE.sub(lambda m: m.group(1) + (" " if _glued(m) else ""), text)
     if not opts.latin or opts.span is None:
         return text
     span = opts.span
@@ -72,9 +79,8 @@ def links(text: str, opts: Options) -> str:
 
     def bounded(m: re.Match) -> str:
         out = replace(m)
-        after = m.string[m.end():m.end() + 1]
         # Text glued to the link (``](u)suffix``, ``](u)[b](v)``) must not join the emitted URL.
-        if out != m.group(0) and after and not after.isspace() and after not in _URL_END:
+        if out != m.group(0) and _glued(m):
             out += " "
         return out
 

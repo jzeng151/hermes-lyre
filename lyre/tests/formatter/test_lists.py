@@ -156,3 +156,19 @@ def test_unclosed_continuation_fence_keeps_the_list():
     once = plain(text)
     assert once == "- a\n  ```py\n  code\n- b\n\nAfter bold"
     assert plain(once) == once
+
+
+@pytest.mark.parametrize("text,expected", [
+    # a four-backtick fence closed by three is still open: the list stays as written
+    ("- ````py\n  x\n  ```\n- **b**\n\nAfter **bold**", "- ````py\n  x\n  ```\n- b\n\nAfter bold"),
+    # a nested thematic break that looks like an item: left as written
+    ("- a\n  * * *\n- b", "- a\n  * * *\n- b"),
+    # a sibling at another indent with a new marker type starts a new list
+    ("- Prerequisite\n\n 1. Build\n 2. Test", "1 item.\n1, Prerequisite\n\n2 items.\n1, Build\n2, Test"),
+    # a list nested on its parent's marker line: left as written
+    ("- - first child\n  - second child\n- next", "- - first child\n  - second child\n- next"),
+])
+def test_review_round_six_lists(text, expected):
+    once = plain(text)
+    assert once == expected
+    assert plain(once) == once
