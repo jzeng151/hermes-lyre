@@ -102,6 +102,11 @@ def _paragraph(lines: list[str], i: int) -> tuple[Block, int]:
     return Block("paragraph", lines[i:j]), j
 
 
+def _starts_block(line: str) -> bool:
+    return bool(block_token_kind(line) or QUOTE_RE.match(line) or ATX_RE.match(line) or is_thematic_break(line)
+                or LIST_ITEM_RE.match(line))
+
+
 def _one_block(lines: list[str], i: int) -> tuple[Block, int]:
     line = lines[i]
     token_kind = block_token_kind(line)
@@ -118,7 +123,8 @@ def _one_block(lines: list[str], i: int) -> tuple[Block, int]:
     if is_thematic_break(line):
         return Block("rule", [line]), i + 1
     if _is_table_start(lines, i):
-        j = _take_while(lines, i, lambda s: bool(s.strip()) and "|" in s)
+        # GFM: rows run to a blank line or the start of another block; a short row may have no pipe.
+        j = _take_while(lines, i, lambda s: bool(s.strip()) and ("|" in s or not _starts_block(s)))
         return Block("table", lines[i:j]), j
     if LIST_ITEM_RE.match(line):
         j = _list_end(lines, i)

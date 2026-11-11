@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from ..model import Block, Options
+from ..blocks import syntax_categories
 from ..spans import LIST_ITEM_RE, indent_width, is_block_token_line
 from . import InlineFn, register_block_rule
 from .code import already_labelled, labelled
@@ -20,6 +21,7 @@ from .code import already_labelled, labelled
 class _Item:
     number: str
     text: str
+    column: int  # where the item's content starts; continuation lines indented less leave it
     extras: list = field(default_factory=list)  # ("line", text) | ("blank", "") | ("list", _List)
 
 
@@ -27,40 +29,71 @@ class _Item:
 class _List:
     level: int
     indent: int
-    ordered: bool
+    kind: str  # the bullet character or the ordered delimiter; a change starts a new list
     items: list[_Item] = field(default_factory=list)
 
 
-def _parse(lines: list[str]) -> _List | None:
-    first = LIST_ITEM_RE.match(lines[0])
-    if not first:
+def _kind(marker: str) -> str:
+    return marker[-1] if marker[0].isdigit() else marker
+
+
+def _new_list(stack: list[_List], roots: list[_List], level: int, indent: int, kind: str) -> _List:
+    """Open a list at *level*: a sibling after the list it replaces, or a child of the open item."""
+    lst = _List(level, indent, kind)
+    if level == 1:
+        roots.append(lst)
+    else:
+        stack[-1].items[-1].extras.append(("list", lst))
+    stack.append(lst)
+    return lst
+
+
+def _parse(lines: list[str]) -> list[_List] | None:
+    """The top-level lists in *lines*, or None when the block is not something this rule can speak.
+
+    Continuation lines that start with block syntax (a heading, quote, rule or table inside an
+    item) are not spoken here; the list is then left to the default inline handling.
+    """
+    if not LIST_ITEM_RE.match(lines[0]):
         return None
-    root = _List(1, indent_width(first.group(1)), first.group(2)[0].isdigit())
-    stack = [root]
+    roots: list[_List] = []
+    stack: list[_List] = []
+    prev_blank = False
     for line in lines:
         m = LIST_ITEM_RE.match(line)
         if m:
-            indent, marker = indent_width(m.group(1)), m.group(2)
-            while len(stack) > 1 and indent < stack[-1].indent:
+            indent, kind = indent_width(m.group(1)), _kind(m.group(2))
+            while stack and indent < stack[-1].indent:
                 stack.pop()
-            if indent > stack[-1].indent and stack[-1].items:
-                sub = _List(stack[-1].level + 1, indent, marker[0].isdigit())
-                stack[-1].items[-1].extras.append(("list", sub))
-                stack.append(sub)
+            if stack and indent == stack[-1].indent and kind != stack[-1].kind:
+                stack.pop()  # same level, new marker type: a separate list
+                _new_list(stack, roots, len(stack) + 1, indent, kind)
+            elif not stack or (indent > stack[-1].indent and stack[-1].items):
+                _new_list(stack, roots, len(stack) + 1, indent, kind)
             target = stack[-1]
+            marker = m.group(2)
             number = marker[:-1] if marker[0].isdigit() else str(len(target.items) + 1)
-            target.items.append(_Item(number, line[m.end():]))
-        elif not stack[-1].items:
-            return None
-        elif line.strip():
-            stack[-1].items[-1].extras.append(("line", line.strip()))
-        else:
+            column = m.end() if line[m.end():].strip() else indent + len(marker) + 1
+            target.items.append(_Item(number, line[m.end():], column))
+        elif not line.strip():
+            prev_blank = True
             stack[-1].items[-1].extras.append(("blank", ""))
-    return root
+        else:
+            if syntax_categories(line.strip(), None) - {"list"}:
+                return None
+            # After a blank line, return to the item that owns this paragraph (it may sit above a
+            # nested list); directly after an item the line is a lazy continuation of it.
+            while prev_blank and len(stack) > 1 and indent_width(line) < stack[-1].items[-1].column:
+                stack.pop()
+            stack[-1].items[-1].extras.append(("line", line.strip()))
+        if line.strip():
+            prev_blank = False
+    return roots
 
 
 def _task(text: str, opts: Options) -> str:
-    if not opts.latin or len(text) < 3 or text[0] != "[" or text[2] != "]" or text[1] not in " xX":
+    if (not opts.latin or len(text) < 3 or text[0] != "[" or text[2] != "]" or text[1] not in " xX"
+            or text[3:4] not in ("", " ", "\t")):
         return text
     rest = text[3:].lstrip()
     return ("(not done) " if text[1] == " " else "(done) ") + rest
@@ -102,8 +135,9 @@ def _emit(lst: _List, opts: Options, inline: InlineFn, out: list[str]) -> None:
             out.append(pad + _label(lst, item.number, opts).rstrip())
             out.extend(pad + line if line else line for line in labelled(raw, opts) or [raw])
         else:
-            text = inline(_task(raw, opts)).strip() or raw
-            out.append(pad + _label(lst, item.number, opts) + text)
+            # An item the inline rules emptied (only decoration) keeps its number, nothing more.
+            text = inline(_task(raw, opts)).strip()
+            out.append((pad + _label(lst, item.number, opts) + text).rstrip())
         for index, (kind, value) in enumerate(item.extras):
             if kind == "list":
                 _emit(value, opts, inline, out)
@@ -115,7 +149,9 @@ def _emit(lst: _List, opts: Options, inline: InlineFn, out: list[str]) -> None:
                 lines = None if _labelled_nearby(item.extras, index) else labelled(value, opts)
                 out.extend(pad + line if line else line for line in lines or [value])
             else:
-                out.append(pad + (inline(value).strip() or value))
+                text = inline(value).strip()
+                if text:
+                    out.append(pad + text)
 
 
 def _labelled_nearby(extras: list, index: int) -> bool:
@@ -126,15 +162,22 @@ def _labelled_nearby(extras: list, index: int) -> bool:
 
 
 def lists(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
-    root = _parse(block.lines)
-    if root is None:
+    roots = _parse(block.lines)
+    if roots is None:
         return None
     out: list[str] = []
-    _emit(root, opts, inline, out)
+    for root in roots:
+        part: list[str] = []
+        _emit(root, opts, inline, part)
+        trailing = 0
+        while part and not part[-1].strip():
+            part.pop()
+            trailing += 1
+        if opts.verbosity == "full" and opts.latin:
+            part.append("End of list.")
+        out.extend(part + [""] * trailing)
     while out and not out[-1].strip():
         out.pop()
-    if opts.verbosity == "full" and opts.latin:
-        out.append("End of list.")
     return out
 
 

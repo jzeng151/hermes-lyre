@@ -117,3 +117,20 @@ def test_more_emoji_presentations(text, expected):
 ])
 def test_text_symbols_are_kept(text):
     assert format_for_speech(text, profile="plain") is text
+
+
+@pytest.mark.parametrize("text", ["☝🏽 Next", "✌🏽 Next", "✍🏽 Next", "⛹🏽 Next"])
+def test_text_default_base_with_skin_tone_removed_whole(text):
+    for policy in ("words", "remove"):
+        assert format_for_speech(text, profile="plain", emoji_policy=policy) == "Next"
+
+
+def test_emoji_then_drawing_line_removed_in_one_pass():
+    for profile in ("plain", "markdown"):
+        assert format_for_speech("Intro\n🎉 ───\nEnd", profile=profile) == "Intro\nEnd"
+
+
+def test_emoji_letter_does_not_count_as_script():
+    once = format_for_speech("ℹ️ ✅", profile="plain")
+    assert once == "(done)"
+    assert format_for_speech(once, profile="plain") == once
