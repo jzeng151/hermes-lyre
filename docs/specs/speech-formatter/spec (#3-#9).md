@@ -71,6 +71,7 @@ Each rule lists the output at `normal` verbosity, then the differences at `brief
 - Backslash escapes stay as written. Turning `\*literal\*` into `*literal*` would let a second pass strip those asterisks, breaking AC-5. The one exception is `\|` inside a table that R6 converts, because the converted output is never a table again.
 - Markers are removed only when they pair on the same line. An unpaired `*` or `_` is left as is (for example `2 * 3`, `snake_case`).
 - Underscore markers pair only when the closing marker is followed by whitespace, line end or `, ; : ! ? )`, so `__init__.py` keeps its underscores (ADR 0003).
+- Single asterisks may pair inside a word (`un*believ*able`, CJK text) but never next to a digit, so `2*3*4` keeps its operators.
 - `brief`: strikethrough becomes `(removed: gone)` as well; no difference.
 - `full`: no difference.
 - `markdown` profile: strikethrough still becomes `(removed: gone)`, because several clients render it as plain text and the meaning is easy to miss.
@@ -249,6 +250,7 @@ End of code.
 - `> text` -> `text` (the marker is removed; nested `> >` too). The contents are processed as a container (processing step 3) on both profiles; on the `markdown` profile the markers are then put back on every output line of the quote, so only the quote's contents change.
 - `full`: a `Quote:` line before the quote's contents and an `End of quote.` line after them (plain profile only). The announcement is on its own line, never prefixed to the first line, so labels inside the quote (such as an R7 code label) stay recognizable on the next pass.
 - Removing the markers is plain only; container processing of the contents runs on both profiles.
+- The markers stay (the contents are still processed) when the quote's processed contents hold an unclosed fence, an unclosed `$$` or a list marker, because removing them would change how the rest of the reply parses.
 - When text sits directly above the quote, the unwrapped contents start after a blank line, so they stay a separate block on the next pass (a quoted indented code block stays code). The quote's contents keep their own spacing; only the outer pass trims nothing inside them.
 
 ## Acceptance Criteria
