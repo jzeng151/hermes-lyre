@@ -94,7 +94,11 @@ def _parse(lines: list[str]) -> list[_List] | None:
                 # not a child marker. Keep this unsupported structure rather than invent a list.
                 return None
             nests = not stack or (stack[-1].items and indent >= stack[-1].items[-1].column)
-            if stack and nests and not prev_blank and m.group(2)[0].isdigit() and m.group(2)[:-1].lstrip("0") != "1":
+            above = lines[i - 1] if i else ""
+            above_item = LIST_ITEM_RE.match(above)
+            above_text = (above[above_item.end():] if above_item else above).strip()
+            interrupts = not prev_blank and bool(above_text) and not is_block_token_line(above_text)
+            if stack and nests and interrupts and m.group(2)[0].isdigit() and m.group(2)[:-1].lstrip("0") != "1":
                 # An ordered list interrupts the item's text only when it starts at 1 (CommonMark):
                 # ``2. not a child`` is a continuation line. Speaking it would expose a marker on
                 # the next pass, so leave this list as written.

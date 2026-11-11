@@ -266,9 +266,31 @@ def protect_blocks(lines: list[str], stash: Stash) -> list[str]:
         elif list_content_column(line) is not None and not _BREAK_RE.match(line):
             _open_level(columns, line, list_col)
         out.append(line)
-        prev_blank = not line.strip()
+        # A thematic break is a block boundary like a blank line: indented code may follow it.
+        prev_blank = not line.strip() or bool(_BREAK_RE.match(line))
         i += 1
     return out
+
+
+def _merged(ranges: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """*ranges* sorted, with overlapping ones joined (a URL can sit inside a destination)."""
+    out: list[tuple[int, int]] = []
+    for start, end in sorted(ranges):
+        if out and start < out[-1][1]:
+            out[-1] = (out[-1][0], max(out[-1][1], end))
+        else:
+            out.append((start, end))
+    return out
+
+
+def _overlaps(ranges: list[tuple[int, int]], start: int, end: int) -> bool:
+    """True when [start, end) overlaps a range in *ranges* (sorted by start, ends increasing)."""
+    if not ranges:
+        return False
+    k = bisect.bisect_right(ranges, (start, float("inf")))  # last range starting at or before start
+    if k and ranges[k - 1][1] > start:
+        return True
+    return k < len(ranges) and ranges[k][0] < end
 
 
 def _open_level(columns: list[int], line: str, column: int | None) -> None:
@@ -319,7 +341,7 @@ def _protect_code_spans(line: str, stash: Stash) -> str:
     target_ends = [end for _, end in targets]
     # Only math that the math pass will protect: never a range reaching into a destination or URL.
     maths = [m.span() for m in INLINE_MATH_RE.finditer(line)
-             if not any(m.start() < e and m.end() > s for s, e in [*targets, *urls])] if "$$" in line else []
+             if not _overlaps(_merged([*targets, *urls]), m.start(), m.end())] if "$$" in line else []
     math_ends = [end for _, end in maths]
     by_len: dict[int, list[int]] = {}
     for idx, (_, size) in enumerate(runs):
@@ -561,7 +583,7 @@ def protect_inline(line: str, stash: Stash) -> str:
         # Math never reaches into a link destination: the destination is protected whole below.
         targets = _link_target_ranges(line) if "](" in line else []
         line = _sub_outside_urls(INLINE_MATH_RE, "n", line, stash,
-                                 skip=lambda m: any(m.start() < e and m.end() > s for s, e in targets))
+                                 skip=lambda m: _overlaps(targets, m.start(), m.end()))
     if "<" in line:
         # Tags before escapes: a backslash inside an attribute does not escape its closing quote.
         # An escaped ``\<`` is not a tag.

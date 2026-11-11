@@ -115,3 +115,23 @@ def test_tabs_inside_quoted_code_are_kept():
 def test_break_inside_an_item_keeps_the_list():
     out = twice("- parent\n  * * *\n\n    **continuation prose**", profile="plain")
     assert "**continuation prose**" not in out
+
+
+# Third review round on the follow-ups.
+def test_math_and_link_overlap_check_is_not_quadratic():
+    import time
+    text = "[a](b) " * 10000 + "$$x$$ " * 10000
+    start = time.perf_counter()
+    format_for_speech(text, profile="plain")
+    assert time.perf_counter() - start < 2.0
+
+
+def test_indented_line_after_a_break_is_code():
+    out = twice("* * *\n    ```\n**prose**\n\n- item", profile="plain")
+    assert "**prose**" not in out and "1, item" in out
+
+
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_ordered_child_after_item_code_is_spoken(profile):
+    out = twice("- ```py\n  x\n  ```\n  2. child", profile=profile)
+    assert "Python code" in out and "child" in out
