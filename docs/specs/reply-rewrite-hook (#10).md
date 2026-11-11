@@ -74,6 +74,7 @@ Settings are read on every call through `ctx.get_config`, so changes made by `/a
 
 | Condition | Behavior | Log |
 | --- | --- | --- |
+| A formatter rule fails (the formatter returns the input and calls `on_error`) | Return `None` | The same `WARNING`, from the `on_error` callback. |
 | Any exception in steps 1 to 5 | Return `None` | One `WARNING` with the traceback (`exc_info=True`): `lyre: rewrite skipped (<ExceptionType>) turn=<turn_id>`. No reply text; tracebacks carry no local variables (ADR 0005). |
 | Formatter took longer than 200 ms | Return the result | One `INFO` with the duration and input length, no reply text. |
 | Invalid setting value | Use the default for that key | Handled in [settings.md](settings%20%28%2311%29.md). |
