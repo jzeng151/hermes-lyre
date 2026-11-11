@@ -121,12 +121,12 @@ def test_non_latin_list_gets_numbers_only():
 
 def test_indented_code_in_item_keeps_bytes():
     out = plain("- Example:\n\n      print(\"✅ **x**\")\n\n- next")
-    assert out == "2 items.\n1, Example:\n\n      print(\"✅ **x**\")\n\n2, next"
+    assert out == "2 items.\n1, Example:\n\nCode, 1 line:\n\n      print(\"✅ **x**\")\n\nEnd of code.\n\n2, next"
 
 
 def test_fence_opened_on_item_line():
     out = plain("- ```py\n  x='**'\n  ```\n- after")
-    assert out == "2 items.\n1,\n```py\n  x='**'\n  ```\n2, after"
+    assert out == "2 items.\n1,\nPython code, 1 line:\n```py\n  x='**'\n  ```\nEnd of code.\n2, after"
 
 
 def test_ac18_three_levels_with_fence_in_deepest_item():
@@ -142,7 +142,7 @@ def test_ac18_three_levels_with_fence_in_deepest_item():
             continue
         if not fence:
             assert len(line) - len(line.lstrip(" ")) < 4, line
-    assert once.count("code") == 0  # no code labels yet (R7), and none added on the second pass
+    assert once.count("Python code, 1 line:") == once.count("End of code.") == 1  # one R7 label pair
 
 
 CASES = [NESTED, "5. Five\n6. Six", "- [x] Done", "- a\n  - b\n    - c\n      - d", "- Example:\n\n      x = 1\n\n- n",
@@ -160,7 +160,7 @@ def test_idempotent(text, verbosity, profile):
 @pytest.mark.parametrize("text,expected", [
     # indented code that starts with a marker and a fence stays code
     ('Example:\n\n    - ```py\n    x = "**bold**"\n    - ```\n\nAfter **bold**',
-     'Example:\n\n    - ```py\n    x = "**bold**"\n    - ```\n\nAfter bold'),
+     'Example:\n\nCode, 3 lines:\n\n    - ```py\n    x = "**bold**"\n    - ```\n\nEnd of code.\n\nAfter bold'),
     # block syntax inside an item: the list is left to default handling
     ("- a\n  ---\n- b", "- a\n  ---\n- b"),
     # an item emptied by the inline rules keeps only its number
@@ -168,7 +168,7 @@ def test_idempotent(text, verbosity, profile):
     # a change of marker type starts a separate list
     ("- Prerequisite\n\n1. Build\n2. Test", "1 item.\n1, Prerequisite\n\n2 items.\n1, Build\n2, Test"),
     # a link labelled x is not a task box
-    ("- [x](https://example.com)\n- Other", "2 items.\n1, [x](https://example.com)\n2, Other"),
+    ("- [x](https://example.com)\n- Other", "2 items.\n1, x, link: https://example.com\n2, Other"),
     # prose after a nested list returns to its owning item and ends the nested list
     ("- Parent\n  - child\n\n  Parent continuation\n  - second child\n- Next",
      "2 items.\n1, Parent\n  1 sub-item.\n  sub-item 1, child\n\nParent continuation\n"
@@ -188,7 +188,8 @@ def test_review_round_structure(text, expected):
     # an item fence with no closing line inside its item: the list stays as written
     ("- ```py\n  code\n- **next**\n\nAfter **bold**", "- ```py\n  code\n- next\n\nAfter bold"),
     # five spaces after the marker: indented code, not an item fence
-    ("-     ```py\n- **next**\n\nAfter **bold**", "-     ```py\n1 item.\n1, next\n\nAfter bold"),
+    ("-     ```py\n- **next**\n\nAfter **bold**",
+     "Code, 1 line:\n\n-     ```py\n\nEnd of code.\n1 item.\n1, next\n\nAfter bold"),
 ])
 def test_review_round_four_lists(text, expected):
     once = plain(text)

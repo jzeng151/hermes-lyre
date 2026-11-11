@@ -131,7 +131,7 @@ def tables(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
     restored = [_original(line, block) for line in out]
     stash = Stash()
     protected = protect_code_spans(restored, stash, lambda line: False)
-    next_opts = replace(opts, span=stash.value_of)
+    next_opts = replace(opts, span=stash.value_of, protect_url=lambda url: stash.put("u", url))
     checked = []
     active = inline_rules()
     for line in protected:

@@ -52,7 +52,7 @@ def test_words_policy(text, expected, profile):
     "plain text, no emoji",
 ])
 def test_protected_and_emoji_free_text_untouched(text):
-    assert format_for_speech(text, profile="plain") is text
+    assert text in format_for_speech(text, profile="plain")  # code may gain R7 labels
 
 
 def test_emoji_only_reply_falls_back_to_input():
@@ -61,7 +61,7 @@ def test_emoji_only_reply_falls_back_to_input():
 
 def test_link_label_keeps_url_emoji():
     out = format_for_speech("🎉 [details](https://example.test/a_✅?x=1)", profile="plain")
-    assert out == "[details](https://example.test/a_✅?x=1)"
+    assert out == "details, link: https://example.test/a_✅?x=1"
 
 
 def test_remove_policy_drops_status_emoji_too():

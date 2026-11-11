@@ -179,7 +179,7 @@ def _process(text: str, opts: Options, depth: int) -> str:
     if depth == 0:
         latin, total = _protected_letter_counts(lines, stash=stash)
         opts = replace(opts, latin=total == 0 or latin * 2 >= total)
-    opts = replace(opts, span=stash.value_of)
+    opts = replace(opts, span=stash.value_of, protect_url=lambda url: stash.put("u", url))
     entries: list = []
     blocks = segment(lines)
     for i, block in enumerate(blocks):
@@ -191,7 +191,11 @@ def _process(text: str, opts: Options, depth: int) -> str:
     for block in blocks:
         out = _render(block, opts, depth)
         if out is not None and not any(line.strip() for line in out) and _before_indented_code(block):
-            out = None  # the block may be what ends a list above; removing it would turn the code into list text
+            # The block may end a list above; removing it could turn the code into list text.
+            # Keep its paragraph boundary too: an inserted code label must not join this
+            # retained decoration and let the next pass remove it from a larger paragraph.
+            following = block.meta.get("next")
+            out = [*block.lines, ""] if following and is_block_token_line(following) else None
         first = block.lines[0] if out is None else (out[0] if out else None)
         changed = out is not None
         if first is not None and (changed or prev_changed) and _exposed_at_boundary(first, prev_out):
@@ -222,6 +226,8 @@ def _process(text: str, opts: Options, depth: int) -> str:
 
 def _before_indented_code(block: Block) -> bool:
     following = block.meta.get("next_non_math_text")
+    if following is not None and rules.is_code_label(following):
+        return True  # after the first pass the code has its label above it
     return following is not None and is_block_token_line(following) and following.strip()[1] in ("c", "f")
 
 

@@ -15,6 +15,7 @@ from ..model import Block, Options
 from ..blocks import is_thematic_break, syntax_categories
 from ..spans import LIST_ITEM_RE, indent_width, is_block_token_line
 from . import InlineFn, register_block_rule
+from .code import LABEL_RE, already_labelled, labelled
 
 # Match just the opener: destinations and titles may continue on subsequent lines.
 _REF_DEF_START_RE = re.compile(r"^\[[^\]\n]+\]:")
@@ -164,19 +165,27 @@ def _emit(lst: _List, opts: Options, inline: InlineFn, out: list[str]) -> bool:
             # The item is a code block: number on its own line, code below it, so the fence
             # starts a line and stays protected on the next pass.
             out.append(pad + _label(lst, item.number, opts).rstrip())
+            out.extend(pad + line if line else line for line in labelled(raw, opts) or [raw])
+        elif LABEL_RE.match(raw):
+            # A code label as the item's text: on its own line, so the next pass still sees the
+            # label directly above the code it names.
+            out.append(pad + _label(lst, item.number, opts).rstrip())
             out.append(pad + raw)
         else:
             # An item the inline rules emptied (only decoration) keeps its number, nothing more.
             text = inline(_task(raw, opts)).strip()
             out.append((pad + _label(lst, item.number, opts) + text).rstrip())
-        for kind, value in item.extras:
+        labelled_at = _labelled_neighbours(item.extras, item.text.strip())
+        for index, (kind, value) in enumerate(item.extras):
             if kind == "list":
                 if not _emit(value, opts, inline, out):
                     return False
             elif kind == "blank":
                 out.append("")
             elif is_block_token_line(value.text):
-                out.append(pad + value.text)  # protected code: restored byte for byte later
+                # Protected code retains bytes and existing labels across repeated passes.
+                lines = None if labelled_at[index] else labelled(value.text, opts)
+                out.extend(pad + line if line else line for line in lines or [value.text])
             else:
                 text = inline(value.text).strip()
                 before = syntax_categories(value.text, value.prev)
@@ -188,6 +197,26 @@ def _emit(lst: _List, opts: Options, inline: InlineFn, out: list[str]) -> bool:
                 if text:
                     out.append(pad + text)
     return True
+
+
+def _labelled_neighbours(extras: list, opening: str | None = None) -> list[bool]:
+    """For each extra, whether the nearest text lines around it are a code label and its end.
+
+    Two linear passes, so an item holding many code blocks stays linear.
+    """
+    before: list[str | None] = []
+    last = opening or None  # the item's own text is the first line above its extras
+    for kind, value in extras:
+        before.append(last)
+        if kind == "line":
+            last = value.text
+    after: list[str | None] = [None] * len(extras)
+    following = None
+    for index in range(len(extras) - 1, -1, -1):
+        after[index] = following
+        if extras[index][0] == "line":
+            following = extras[index][1].text
+    return [already_labelled(b, a) for b, a in zip(before, after)]
 
 
 def _unsafe_fence(token: str, opts: Options) -> bool:

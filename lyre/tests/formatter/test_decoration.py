@@ -28,7 +28,8 @@ def test_rules_and_drawing_lines_removed(profile, text, expected):
     "    ┌──┐\n    └──┘",
 ])
 def test_trees_braille_and_code_untouched(text):
-    assert format_for_speech(text, profile="plain") is text
+    out = format_for_speech(text, profile="plain")
+    assert text in out  # code blocks gain R7 labels around them; their lines never change
 
 
 @pytest.mark.parametrize("text", ["A\n***\nB", "Top\n\n┌──┐\n\nEnd", "├── src/", "⠓⠑⠇⠇⠕"])
