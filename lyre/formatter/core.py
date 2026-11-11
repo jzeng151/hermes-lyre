@@ -86,7 +86,11 @@ def _process(text: str, opts: Options, depth: int) -> str:
     if depth == 0:
         opts = replace(opts, latin=is_latin(lines))
     entries: list = []
-    for block in segment(lines):
+    blocks = segment(lines)
+    for i, block in enumerate(blocks):
+        block.meta["prev"] = blocks[i - 1].lines[-1] if i else None
+        block.meta["next"] = blocks[i + 1].lines[0] if i + 1 < len(blocks) else None
+    for block in blocks:
         out = _render(block, opts, depth)
         if out is None:
             entries.extend((line, False) for line in block.lines)
@@ -116,16 +120,19 @@ def _inline_fn(opts: Options):
 def _render(block: Block, opts: Options, depth: int) -> list[str] | None:
     """Replacement lines for *block*, ``[]`` to remove it, or None when nothing changed."""
     if block.kind == "blockquote":
+        # The contents already went through this pipeline (guard included); dropping the
+        # markers only reveals structure that was there, so the guard does not apply.
         out = _render_quote(block, opts, depth)
-    else:
-        inline = _inline_fn(opts)
-        rule = rules.block_rule(block.kind)
-        out = rule(block, opts, inline) if rule else None
-        if out is None and block.kind in ("paragraph", "heading", "list", "table"):
-            out = _inline_lines(block.lines, inline)
+        return None if out is None or out == block.lines else out
+    inline = _inline_fn(opts)
+    rule = rules.block_rule(block.kind)
+    out = rule(block, opts, inline) if rule else None
+    per_line = out is None
+    if per_line and block.kind in ("paragraph", "heading", "list", "table"):
+        out = _inline_lines(block.lines, inline)
     if out is None or out == block.lines:
         return None
-    return _guard(block.lines, out)
+    return _guard(block.lines, out, per_line)
 
 
 def _inline_lines(lines: list[str], inline) -> list[str]:
@@ -160,9 +167,13 @@ def _render_quote(block: Block, opts: Options, depth: int) -> list[str] | None:
     return [(marker + line) if line.strip() else marker.rstrip(" ") for line in inner_out]
 
 
-def _guard(before: list[str], after: list[str]) -> list[str]:
-    """Step 6: undo output that starts with block syntax its input did not start with."""
-    if len(before) == len(after):
+def _guard(before: list[str], after: list[str], per_line: bool) -> list[str]:
+    """Step 6: undo output that starts with block syntax its input did not start with.
+
+    Inline rules map lines one to one, so a single exposed line is restored on its own. A block
+    rule's output is all or nothing: one exposed line restores the whole block.
+    """
+    if per_line and len(before) == len(after):
         guarded = []
         for i, (old, new) in enumerate(zip(before, after)):
             exposed = (syntax_categories(new, after[i - 1] if i else None)

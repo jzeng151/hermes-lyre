@@ -36,6 +36,15 @@ FIXTURES = {
 ALL_OPTIONS = [dict(profile=p, verbosity=v) for p in ("plain", "markdown") for v in ("brief", "normal", "full")]
 
 
+@pytest.fixture(autouse=True)
+def empty_registry():
+    """Core tests run with no real rules, so pass-through means the pipeline itself."""
+    saved = rules.snapshot()
+    rules.clear()
+    yield
+    rules.restore(saved)
+
+
 @pytest.fixture
 def temp_rules():
     """Register throwaway rules for one test and always remove them."""

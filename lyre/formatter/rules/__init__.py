@@ -50,3 +50,19 @@ def block_rule(kind: str) -> BlockRule | None:
 
 def inline_rules() -> list[InlineRule]:
     return [rule for _, _, rule in _inline_rules]
+
+
+def snapshot() -> tuple[dict, list]:
+    """Copy of the registry, for tests that need it empty or altered."""
+    return dict(_block_rules), list(_inline_rules)
+
+
+def restore(saved: tuple[dict, list]) -> None:
+    _block_rules.clear()
+    _block_rules.update(saved[0])
+    _inline_rules[:] = saved[1]
+
+
+def clear() -> None:
+    _block_rules.clear()
+    _inline_rules.clear()
