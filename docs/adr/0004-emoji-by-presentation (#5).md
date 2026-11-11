@@ -23,4 +23,5 @@ The status words still match core's labels, so running both formatters gives one
 
 - Music notation, ratings, chess moves and other symbols survive.
 - Lyre and core's WhatsApp formatter can differ on text-default symbols without U+FE0F: core removes `❤` alone, Lyre keeps it. Lyre's choice keeps information.
-- Cost: the emoji tables are written out by hand from the Unicode emoji data and need a refresh when Unicode adds emoji. Unknown new pictographs in the existing pictograph blocks are still matched.
+- Cost: the emoji tables are generated from Unicode 16.0 `emoji-data.txt` (`Emoji_Presentation` and `Emoji`) and need a refresh when Unicode adds emoji. Pictographs added after 16.0 are kept as text until then, which loses nothing.
+- The supplementary planes follow the same rule: `🕆` (not an emoji) is never removed, and text-default `🖥` and `🛠` count only with U+FE0F.

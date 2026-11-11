@@ -52,6 +52,19 @@ def inline_rules() -> list[InlineRule]:
     return [rule for _, _, rule in _inline_rules]
 
 
+_code_label: Callable[[str], object] | None = None
+
+
+def register_code_label(match: Callable[[str], object]) -> None:
+    """Recognize a code label line (``Python code, 1 line:``); the code it names follows it."""
+    global _code_label
+    _code_label = match
+
+
+def is_code_label(line: str) -> bool:
+    return bool(_code_label and _code_label(line.strip()))
+
+
 def snapshot() -> tuple[dict, list]:
     """Copy of the registry, for tests that need it empty or altered."""
     return dict(_block_rules), list(_inline_rules)

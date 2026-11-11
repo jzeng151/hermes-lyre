@@ -11,7 +11,7 @@ from __future__ import annotations
 import re
 
 from ..model import Block, Options
-from . import InlineFn, register_block_rule
+from . import InlineFn, register_block_rule, register_code_label
 
 LANGUAGES = {
     "python": "Python", "py": "Python", "javascript": "JavaScript", "js": "JavaScript",
@@ -80,3 +80,4 @@ def code(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
 
 
 register_block_rule("code", code)
+register_code_label(LABEL_RE.match)

@@ -206,3 +206,13 @@ def test_quote_keeps_markers_when_unwrapping_would_change_parsing(text, protecte
     once = plain(text)
     assert protected in once.split("\n")
     assert plain(once) == once
+
+
+@pytest.mark.parametrize("text,kept", [
+    ("- item\n#\n\n    **code**", "    **code**"),
+    ("- item\n>   ```\n> **literal**\n>   ```", "> **literal**"),
+])
+def test_review_round_five_list_context(text, kept):
+    once = plain(text)
+    assert kept in once.split("\n")
+    assert plain(once) == once
