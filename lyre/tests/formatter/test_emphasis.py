@@ -95,7 +95,9 @@ def test_nested_emphasis_resolves_in_one_pass(text, expected):
 
 @pytest.mark.parametrize("text", ["before\n>\n>     **code**", "- item\n>     **code**", "- a\n\n>     **code**"])
 def test_quote_holding_indented_code_keeps_markers(text):
-    assert plain(text) == text
+    once = plain(text)  # with the list rule, the list above is spoken; the quote is kept either way
+    assert ">     **code**" in once.split("\n")
+    assert plain(once) == once
 
 
 def test_empty_quote_keeps_a_block_boundary():
