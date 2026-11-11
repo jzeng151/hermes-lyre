@@ -109,3 +109,16 @@ def test_markers_paired_across_cells_keep_table():
 def test_pipe_less_short_row_is_a_row():
     assert plain("| A | B |\n|---|---|\nshort\n| next | value |") == (
         "Table, 2 rows, 2 columns: A, B.\nRow 1: A short, B blank.\nRow 2: A next, B value.\nEnd of table.")
+
+
+@pytest.mark.parametrize("text", [
+    "| A | B |\n|---|\n| x | y |",                    # separator narrower than the header
+    "| A | `✅` |\n|---|---|\n| ` | x |",              # a stray backtick could pair across cells
+])
+def test_review_round_two_pass_through(text):
+    assert plain(text) == text
+
+
+def test_table_after_paragraph_line():
+    assert plain("Results:\n| A | B |\n|---|---|\n|1|2|") == (
+        "Results:\nTable, 1 row, 2 columns: A, B.\nRow 1: A 1, B 2.\nEnd of table.")

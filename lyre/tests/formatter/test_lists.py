@@ -114,3 +114,19 @@ def test_review_round_structure(text, expected):
     once = plain(text)
     assert once == expected
     assert plain(once) == once
+
+
+@pytest.mark.parametrize("text,expected", [
+    # inline rules exposing a list marker on a continuation line: the line is kept as written
+    ("- a\n  🎉 - hidden\n- b", "2 items.\n1, a\n🎉 - hidden\n2, b"),
+    # a marker short of the content column is a sibling, not a child
+    ("- first\n - second\n- third", "3 items.\n1, first\n2, second\n3, third"),
+    # an item fence with no closing line inside its item: the list stays as written
+    ("- ```py\n  code\n- **next**\n\nAfter **bold**", "- ```py\n  code\n- next\n\nAfter bold"),
+    # five spaces after the marker: indented code, not an item fence
+    ("-     ```py\n- **next**\n\nAfter **bold**", "-     ```py\n1 item.\n1, next\n\nAfter bold"),
+])
+def test_review_round_four_lists(text, expected):
+    once = plain(text)
+    assert once == expected
+    assert plain(once) == once
