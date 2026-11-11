@@ -47,7 +47,7 @@ def test_guard_only_classifies_needed_lines(monkeypatch, before, after, expected
         return original(line, prev)
 
     monkeypatch.setattr(core, "syntax_categories", tracked)
-    assert core._guard(before, after) == after
+    assert core._guard(before, after, per_line=True) == after
     assert calls == expected_calls
 
 
@@ -59,7 +59,7 @@ def test_guard_only_classifies_needed_lines(monkeypatch, before, after, expected
     (["plain", "text"], ["a|b", ":---|---:"], ["a|b", "text"]),
 ])
 def test_guard_shortcuts_preserve_neighbor_context(before, after, expected):
-    assert core._guard(before, after) == expected
+    assert core._guard(before, after, per_line=True) == expected
 
 
 @pytest.mark.parametrize("lines", [[], ["Ordinary prose", "", "- item", "# heading"]])

@@ -26,6 +26,10 @@ MAX_QUOTE_DEPTH = 10
 _REMOVED = object()  # marks where a block was removed, for blank-line normalization
 
 
+class _TooDeep(Exception):
+    """A quote nested past MAX_QUOTE_DEPTH; the outermost quote holding it stays unchanged."""
+
+
 def format_for_speech(
     text: str,
     *,
@@ -176,11 +180,16 @@ def _process(text: str, opts: Options, depth: int) -> str:
         opts = replace(opts, latin=total == 0 or latin * 2 >= total)
     opts = replace(opts, span=stash.value_of)
     entries: list = []
-    prev_out, prev_changed = None, False  # last rendered line of the previous block
     blocks = segment(lines)
+    for i, block in enumerate(blocks):
+        block.meta["prev"] = blocks[i - 1].lines[-1] if i else None
+        block.meta["next"] = blocks[i + 1].lines[0] if i + 1 < len(blocks) else None
     _nearest_text(blocks)
+    prev_out, prev_changed = None, False  # last rendered line of the previous block
     for block in blocks:
         out = _render(block, opts, depth)
+        if out is not None and not any(line.strip() for line in out) and _before_indented_code(block):
+            out = None  # the block may be what ends a list above; removing it would turn the code into list text
         first = block.lines[0] if out is None else (out[0] if out else None)
         changed = out is not None
         if first is not None and (changed or prev_changed) and _exposed_at_boundary(first, prev_out):
@@ -209,6 +218,11 @@ def _process(text: str, opts: Options, depth: int) -> str:
     return "\n".join(final)
 
 
+def _before_indented_code(block: Block) -> bool:
+    following = block.meta.get("next_non_math_text")
+    return following is not None and is_block_token_line(following) and following.strip()[1] in ("c", "f")
+
+
 def _nearest_text(blocks: list[Block]) -> None:
     """Record each block's nearest non-blank line before and after it (``prev_text``, ``next_text``).
 
@@ -219,11 +233,16 @@ def _nearest_text(blocks: list[Block]) -> None:
         block.meta["prev_text"] = last
         if block.kind != "blank":
             last = block.lines[-1]
-    following = None
+    following = non_math = None
     for block in reversed(blocks):
         block.meta["next_text"] = following
+        block.meta["next_non_math_text"] = non_math
         if block.kind != "blank":
             following = block.lines[0]
+            # Display math preserves list context in protect_blocks; look through it when
+            # deciding whether removing a terminator would expose later protected code.
+            if block.kind != "math":
+                non_math = following
 
 
 def _exposed_at_boundary(first: str, prev_out: str | None) -> bool:
@@ -257,19 +276,24 @@ def _inline_fn(opts: Options):
 def _render(block: Block, opts: Options, depth: int) -> list[str] | None:
     """Replacement lines for *block*, ``[]`` to remove it, or None when nothing changed."""
     if block.kind == "blockquote":
-        # The contents already went through this pipeline, guard included; dropping the markers
-        # only reveals structure that was there, so the guard does not apply (ADR 0003).
-        out = _render_quote(block, opts, depth)
+        # The contents already went through this pipeline (guard included); dropping the
+        # markers only reveals structure that was there, so the guard does not apply.
+        try:
+            out = _render_quote(block, opts, depth)
+        except _TooDeep:
+            if depth:
+                raise
+            return None
         return None if out is None or out == block.lines else out
-    else:
-        inline = _inline_fn(opts)
-        rule = rules.block_rule(block.kind)
-        out = rule(block, opts, inline) if rule else None
-        if out is None and block.kind in ("paragraph", "heading", "list", "table"):
-            out = _inline_lines(block.lines, inline)
+    inline = _inline_fn(opts)
+    rule = rules.block_rule(block.kind)
+    out = rule(block, opts, inline) if rule else None
+    per_line = out is None
+    if per_line and block.kind in ("paragraph", "heading", "list", "table"):
+        out = _inline_lines(block.lines, inline)
     if out is None or out == block.lines:
         return None
-    return _guard(block.lines, out)
+    return _guard(block.lines, out, per_line)
 
 
 def _inline_lines(lines: list[str], inline) -> list[str]:
@@ -287,7 +311,7 @@ def _inline_lines(lines: list[str], inline) -> list[str]:
 
 def _render_quote(block: Block, opts: Options, depth: int) -> list[str] | None:
     if depth >= MAX_QUOTE_DEPTH:
-        return None
+        raise _TooDeep
     prefixes, inner = [], []
     for line in block.lines:
         prefix, body = _strip_quote_marker(line)
@@ -305,9 +329,13 @@ def _render_quote(block: Block, opts: Options, depth: int) -> list[str] | None:
     return [(marker + line) if line.strip() else marker.rstrip(" ") for line in inner_out]
 
 
-def _guard(before: list[str], after: list[str]) -> list[str]:
-    """Step 6: undo output that starts with block syntax its input did not start with."""
-    if len(before) == len(after):
+def _guard(before: list[str], after: list[str], per_line: bool) -> list[str]:
+    """Step 6: undo output that starts with block syntax its input did not start with.
+
+    Inline rules map lines one to one, so a single exposed line is restored on its own. A block
+    rule's output is all or nothing: one exposed line restores the whole block.
+    """
+    if per_line and len(before) == len(after):
         guarded = []
         for i, (old, new) in enumerate(zip(before, after)):
             if new == old and (i == 0 or before[i - 1] == after[i - 1]):
@@ -348,8 +376,9 @@ def _normalize(entries: list) -> list[str]:
                 j += 1
             run = [e[0] for e in entries[i:j] if e is not _REMOVED]
             if touched:
+                # A removal never joins its neighbours: between two blocks one blank line stays.
                 at_edge = i == 0 or j == len(entries)
-                run = [] if at_edge else run[:1]
+                run = [] if at_edge else [""]
             out.extend(run)
             i = j
             continue
