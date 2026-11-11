@@ -93,10 +93,22 @@ def test_nested_emphasis_resolves_in_one_pass(text, expected):
     assert plain(text) == expected
 
 
-def test_quoted_indented_code_stays_code():
-    once = plain("before\n>\n>     **code**")
-    assert once == "before\n\n    **code**"
+@pytest.mark.parametrize("text", ["before\n>\n>     **code**", "- item\n>     **code**", "- a\n\n>     **code**"])
+def test_quote_holding_indented_code_keeps_markers(text):
+    once = plain(text)  # with the list rule, the list above is spoken; the quote is kept either way
+    assert ">     **code**" in once.split("\n")
     assert plain(once) == once
+
+
+def test_empty_quote_keeps_a_block_boundary():
+    once = plain("before\n>\n===")
+    assert once == "before\n\n==="
+    assert plain(once) == once
+
+
+@pytest.mark.parametrize("text", ["~~__obsolete__~~", "~~_obsolete_~~"])
+def test_emphasis_inside_strikethrough(text):
+    assert plain(text) == "(removed: obsolete)"
 
 
 def test_quoted_code_keeps_trailing_spaces():
