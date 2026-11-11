@@ -103,10 +103,18 @@ def _reply_letter_counts(text: str, depth: int = 0) -> tuple[int, int]:
     lines = _protect(text, Stash())
     latin, total = _letter_counts([line for line in lines if not QUOTE_RE.match(line)])
     if depth < MAX_QUOTE_DEPTH:
-        quoted = [_strip_quote_marker(line)[1] for line in lines if QUOTE_RE.match(line)]
-        if quoted:
-            q_latin, q_total = _reply_letter_counts("\n".join(quoted), depth + 1)
-            latin, total = latin + q_latin, total + q_total
+        # Each contiguous quote is its own container, as in _render_quote: an unclosed fence in
+        # one quote must not swallow the letters of the next.
+        runs: list[list[str]] = [[]]
+        for line in lines:
+            if QUOTE_RE.match(line):
+                runs[-1].append(_strip_quote_marker(line)[1])
+            elif runs[-1]:
+                runs.append([])
+        for run in runs:
+            if run:
+                q_latin, q_total = _reply_letter_counts("\n".join(run), depth + 1)
+                latin, total = latin + q_latin, total + q_total
     return latin, total
 
 
