@@ -292,8 +292,9 @@ def _normalize(entries: list) -> list[str]:
                 j += 1
             run = [e[0] for e in entries[i:j] if e is not _REMOVED]
             if touched:
+                # A removal never joins its neighbours: between two blocks one blank line stays.
                 at_edge = i == 0 or j == len(entries)
-                run = [] if at_edge else run[:1]
+                run = [] if at_edge else [""]
             out.extend(run)
             i = j
             continue
