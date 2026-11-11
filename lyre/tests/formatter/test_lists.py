@@ -203,3 +203,30 @@ def test_unmatched_backtick_keeps_list_inline_boundaries(literal, verbosity, pro
     once = format_for_speech(text, profile=profile, verbosity=verbosity)
     assert f"`{literal}`" in once
     assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
+
+
+@pytest.mark.parametrize("text", [
+    "- a\n  ===\n- b",
+    "- parent\n  - child\n    ===\n- next",
+    "1. heading\n   continuation\n   =\n2. next",
+])
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_nested_setext_heading_keeps_list_container(text, verbosity, profile):
+    once = format_for_speech(text, profile=profile, verbosity=verbosity)
+    assert once == text
+    assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
+
+
+@pytest.mark.parametrize("text", [
+    "- [id]: https://example.com\n- See [id]",
+    "- parent\n  - [id]: /destination\n  - See [id]",
+    '- [id]:\n    https://example.com\n    "A title"\n- See [id]',
+    "- definitions:\n\n  [id]: https://example.com\n- See [id]",
+])
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_reference_definition_keeps_list_container(text, verbosity, profile):
+    once = format_for_speech(text, profile=profile, verbosity=verbosity)
+    assert once == text
+    assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
