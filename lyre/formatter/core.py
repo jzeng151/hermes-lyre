@@ -110,7 +110,11 @@ def _protect(text: str, stash: Stash) -> list[str]:
 
 def _reply_letter_counts(text: str, depth: int = 0) -> tuple[int, int]:
     """Letters outside protected spans, quote contents included (each quote protected as a container)."""
-    lines = _protect(text, Stash())
+    return _protected_letter_counts(_protect(text, Stash()), depth)
+
+
+def _protected_letter_counts(lines: list[str], depth: int = 0) -> tuple[int, int]:
+    """Count already-protected lines, descending into quote containers only."""
     latin, total = _letter_counts([line for line in lines if not QUOTE_RE.match(line)])
     if depth < MAX_QUOTE_DEPTH:
         # Each contiguous quote is its own container, as in _render_quote: an unclosed fence in
@@ -140,7 +144,7 @@ def _process(text: str, opts: Options, depth: int) -> str:
     stash = Stash()
     lines = _protect(text, stash)
     if depth == 0:
-        latin, total = _reply_letter_counts(text)
+        latin, total = _protected_letter_counts(lines)
         opts = replace(opts, latin=total == 0 or latin * 2 >= total)
     opts = replace(opts, span=stash.value_of)
     entries: list = []
