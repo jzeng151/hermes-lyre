@@ -443,7 +443,13 @@ REF_DEF_RE = re.compile(r"^( {0,3}\[[^\]\n]+\]:[ \t]*)(<[^>\n]*>|\S+)")
 
 
 def protect_cells(line: str, stash: Stash) -> str:
-    """Protect each table cell separately; code spans cannot cross a cell boundary."""
+    """Protect row-local code first, then protect the remaining cells independently.
+
+    A balanced code span makes its pipes literal, even with spaces around them. Unmatched
+    backticks stay visible; they cannot pair with a backtick in another row. Other protected
+    spans (URLs, link targets, math) must still stop at the remaining cell separators.
+    """
+    line = _protect_code_spans(line, stash)
     parts, start = [], 0
     for i, ch in enumerate(line):
         if ch == "|" and not _escaped(line, i):
