@@ -13,6 +13,10 @@ Run the tests from the plugin folder:
     cd lyre
     uv run --no-project --with pytest --with pyyaml pytest
 
+Lint with the same ruff version and core rules Hermes uses (config in `ruff.toml`):
+
+    uvx ruff@0.15.10 check .
+
 Check the plugin the way the Hermes catalog does:
 
     hermes plugins validate lyre
