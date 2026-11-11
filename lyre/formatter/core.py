@@ -142,6 +142,8 @@ def _process(text: str, opts: Options, depth: int) -> str:
     prev_out, prev_changed = None, False  # last rendered line of the previous block
     for block in blocks:
         out = _render(block, opts, depth)
+        if out is not None and not any(line.strip() for line in out) and _before_indented_code(block):
+            out = None  # the block may be what ends a list above; removing it would turn the code into list text
         first = block.lines[0] if out is None else (out[0] if out else None)
         changed = out is not None
         if first is not None and (changed or prev_changed) and _exposed_at_boundary(first, prev_out):
@@ -168,6 +170,11 @@ def _process(text: str, opts: Options, depth: int) -> str:
     for line in _normalize(entries):
         final.extend(stash.restore(line))
     return "\n".join(final)
+
+
+def _before_indented_code(block: Block) -> bool:
+    following = block.meta.get("next_text")
+    return following is not None and is_block_token_line(following) and following.strip()[1] == "c"
 
 
 def _nearest_text(blocks: list[Block]) -> None:

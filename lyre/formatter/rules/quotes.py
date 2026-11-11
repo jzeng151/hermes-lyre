@@ -59,6 +59,8 @@ def _keep_markers(lines: list[str]) -> bool:
             continue
         m = FENCE_OPEN_RE.match(line)
         if m and not (m.group(2)[0] == "`" and "`" in m.group(3)):
+            if line[:1] in " \t":
+                return True  # an indented fence's scope depends on list context outside the quote
             fence = m.group(2)
         elif body.startswith("$$"):
             math = not (len(body) >= 4 and body.endswith("$$"))
