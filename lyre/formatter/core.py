@@ -6,6 +6,7 @@ Rules live in ``lyre.formatter.rules``; with none registered the output equals t
 
 from __future__ import annotations
 
+import re
 from dataclasses import replace
 from typing import cast
 
@@ -15,6 +16,8 @@ from .model import (EMOJI_POLICIES, PROFILES, TABLE_STYLES, VERBOSITIES, Block, 
                     TableStyle, Verbosity)
 from .spans import (CLOSE, OPEN, TOKEN_RE, Stash, indent_width, is_block_token_line, protect_blocks, protect_cells,
                     protect_code_spans, protect_inline)
+
+_ASCII_LETTER_PROBE = re.compile("[A-Za-z]")
 
 MAX_BYTES = 200_000
 MAX_QUOTE_DEPTH = 10
@@ -73,6 +76,11 @@ def _letter_counts(lines: list[str]) -> tuple[int, int]:
     latin = total = 0
     for line in lines:
         text = TOKEN_RE.sub("", line)
+        if text.isascii():
+            count = len(_ASCII_LETTER_PROBE.findall(text))
+            latin += count
+            total += count
+            continue
         for i, ch in enumerate(text):
             # A letter shown as emoji (information source with U+FE0F) is decoration, not script.
             if ch.isalpha() and text[i + 1:i + 2] != "\uFE0F":
@@ -97,11 +105,11 @@ def _protect(text: str, stash: Stash) -> list[str]:
     lines = protect_blocks(text.split("\n"), stash)
     # Lists do not recursively render their nested quotes. Preserve those lines rather than
     # exposing their code (and any unsupported nested structure) to the list's inline rules.
-    lines = [stash.put("t", line) if block.kind == "list" and QUOTE_RE.match(line) else line
-             for block in segment(lines) for line in block.lines]
     skip = lambda line: bool(is_block_token_line(line) or QUOTE_RE.match(line))  # noqa: E731
     out = []
     for block in segment(lines):
+        if block.kind == "list":
+            block.lines = [stash.put("t", line) if QUOTE_RE.match(line) else line for line in block.lines]
         if block.kind == "blockquote" and any(not QUOTE_RE.match(line) for line in block.lines):
             # Lazy continuations lack marker prefixes. Keep this unsupported container whole,
             # rather than exposing a cross-line code span or inventing quote markers.
@@ -317,15 +325,22 @@ def _guard(before: list[str], after: list[str], per_line: bool) -> list[str]:
     if per_line and len(before) == len(after):
         guarded = []
         for i, (old, new) in enumerate(zip(before, after)):
-            exposed = (syntax_categories(new, after[i - 1] if i else None)
-                       - syntax_categories(old, before[i - 1] if i else None))
+            if new == old and (i == 0 or before[i - 1] == after[i - 1]):
+                guarded.append(old)
+                continue
+            exposed = syntax_categories(new, after[i - 1] if i else None)
+            if exposed:
+                exposed -= syntax_categories(old, before[i - 1] if i else None)
             guarded.append(old if exposed else new)
         return guarded
+    categories = [syntax_categories(line, after[i - 1] if i else None) for i, line in enumerate(after)]
+    if not any(categories):
+        return after
     had: set[str] = set()
     for i, line in enumerate(before):
         had |= syntax_categories(line, before[i - 1] if i else None)
-    for i, line in enumerate(after):
-        if syntax_categories(line, after[i - 1] if i else None) - had:
+    for category in categories:
+        if category - had:
             return before
     return after
 
