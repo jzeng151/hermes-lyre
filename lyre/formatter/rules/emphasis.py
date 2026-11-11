@@ -50,6 +50,9 @@ def emphasis(text: str, opts: Options) -> str:
             before = text
             for pattern in _EMPHASIS:
                 text = pattern.sub(r"\1", text)
+                # No later pattern or round can match once every delimiter is gone.
+                if "*" not in text and "_" not in text:
+                    return text
             if text == before:
                 break
     return text
