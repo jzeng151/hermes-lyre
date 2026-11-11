@@ -113,7 +113,7 @@ def _list_end(lines: list[str], i: int) -> int:
 
 def _quote_end(lines: list[str], i: int) -> int:
     """Include lazy paragraph continuations, but never lazily continue a closed block."""
-    j, paragraph, fence = i, False, None
+    j, paragraph, fence, math = i, False, None, False
     while j < len(lines):
         line = lines[j]
         quote = QUOTE_RE.match(line)
@@ -128,9 +128,18 @@ def _quote_end(lines: list[str], i: int) -> int:
                 if len(stripped) >= len(fence) and stripped == fence[0] * len(stripped):
                     fence = None
                 paragraph = False
+            elif math:
+                math = "$$" not in body
+                paragraph = False
             else:
                 opening = FENCE_OPEN_RE.match(body)
-                if opening and indent_width(body) < 4:
+                if body.lstrip().startswith("$$") and indent_width(body) < 4:
+                    stripped = body.strip()
+                    close = stripped.find("$$", 2)
+                    math = close < 0
+                    # Same-line math followed by prose is inline, not a display block.
+                    paragraph = close >= 0 and close + 2 < len(stripped)
+                elif opening and indent_width(body) < 4:
                     fence = opening.group(2)
                     paragraph = False
                 else:

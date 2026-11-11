@@ -56,9 +56,10 @@ def headings(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
     prev = block.meta.get("prev")
     out = ["", text] if prev is not None and prev.strip() else [text]
     following = block.meta.get("next")
-    if "`" in text and following is not None and following.strip():
+    if "`" in text and (following is None or following.strip()):
         # Unprotected backticks are unmatched within the heading. Once it becomes prose,
-        # they must not pair across its former block boundary with the following paragraph.
+        # preserve its boundary even at container end: quote unwrapping can expose a later
+        # paragraph or a full-verbosity label outside this recursive processing pass.
         out.append("")
     return out
 
