@@ -271,6 +271,10 @@ def _url_token(match: re.Match, stash: Stash) -> str:
     Counts parentheses once and walks back by index, so a long run of ``)`` stays linear.
     """
     url = match.group(0)
+    # A URL used as a link label ends at ``](`` (the target after it is already a token).
+    cut = url.find("](")
+    if cut != -1 and cut + 2 == len(url):
+        url = url[:cut]
     opens, closes = url.count("("), url.count(")")
     end = len(url)
     while end:
@@ -280,7 +284,7 @@ def _url_token(match: re.Match, stash: Stash) -> str:
         elif ch not in URL_TRAILING:
             break
         end -= 1
-    return stash.put("u", url[:end]) + url[end:]
+    return stash.put("u", url[:end]) + match.group(0)[end:]
 
 
 def protect_code_spans(lines: list[str], stash: Stash, skip) -> list[str]:

@@ -220,6 +220,7 @@ End of code.
 - Unclosed fence: the rest of the reply is treated as code and left unchanged, with no labels added.
 - Indented code blocks get the same labels with `Code, N lines:`; their indentation is kept. A blank line separates each label from an indented block, because a label line directly above it would make markdown read the code as part of the paragraph.
 - Idempotency, for fenced and indented blocks alike: if the nearest non-blank line before the block is already a label in Lyre's form and the nearest non-blank line after it is `End of code.`, no label is added.
+- Code inside a list item is labelled by the list rule, with the same labels; a fence opened on the item line puts the item number on its own line, then the label, the code and `End of code.`.
 - `brief`: `Code:` before, `End of code.` after.
 - `full`: as `normal`.
 - Applies to both profiles.
@@ -239,6 +240,8 @@ End of code.
 - Inline code keeps its backticks on both profiles. The backticks are the protection boundary: without them, a second pass would treat `**literal**` or a status emoji inside the code as prose and change it, breaking AC-5 and AC-6. Whether screen readers announce the backticks is Q5.
 - Inline code containing a backtick (double-backtick spans) keeps its delimiters and inner text exactly.
 - `markdown` profile: links are still rewritten, because the raw URL is what lets a listener open or copy it.
+- Link titles (`[a](u "title")`) are dropped; angle-bracket targets (`[a](<u>)`) lose their brackets.
+- Mostly non-Latin replies keep markdown links, because `link:` and `Image:` are English; autolinks still lose their angle brackets.
 - `brief` and `full`: no difference.
 
 ### R9. Blockquotes

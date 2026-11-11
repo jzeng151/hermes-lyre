@@ -10,7 +10,7 @@ Owner: @jzeng151
 | --- | --- | --- | --- |
 | AC-1 9-row table keeps every cell | Unit test | `test_tables.py::test_ac1_nine_rows_keep_every_cell_in_order` | Pass |
 | AC-2 Malformed table byte-identical | Unit tests per pass-through condition | `test_tables.py::test_ac2_malformed_and_oversized_tables_byte_identical` | Pass |
-| AC-3 Long signed URL byte-identical | Unit test, both profiles | | Pending |
+| AC-3 Long signed URL byte-identical | Unit test, both profiles | `test_links.py::test_ac3_long_signed_url_byte_identical` | Pass |
 | AC-4 Emoji-only reply | Unit test | `test_emoji.py::test_words_policy[plain-✅🎉-(done)]` | Pass |
 | AC-5 Idempotent | Property test over golden corpus and fuzz inputs | | Pending |
 | AC-6 Code contents byte-identical | Property test | | Pending |
@@ -28,9 +28,9 @@ Owner: @jzeng151
 | AC-18 Deep lists stay idempotent | Unit test, two passes | `test_lists.py::test_ac18_three_levels_with_fence_in_deepest_item` | Pass |
 | AC-19 Emoji-only reply returned unchanged | Unit test | | Pending |
 | AC-20 Unfenced tree lines unchanged | Unit test, two passes | | Pending |
-| AC-21 Indented code labeled once, kept byte-identical, also inside lists | Unit test, two passes | | Pending |
+| AC-21 Indented code labeled once, kept byte-identical, also inside lists | Unit test, two passes | `test_code.py::test_ac21_indented_code_labelled_once_and_byte_identical`, `test_code.py::test_ac21_indented_code_inside_list_item` | Pass |
 | AC-22 No block syntax exposed by inline rewrites | Unit test, two passes | | Pending |
-| AC-23 Code inside blockquotes protected | Unit test, both profiles, two passes | | Pending |
+| AC-23 Code inside blockquotes protected | Unit test, both profiles, two passes | `test_code.py::test_ac23_code_inside_quote` | Pass |
 
 ## Operational Evidence
 

@@ -124,12 +124,14 @@ def _process(text: str, opts: Options, depth: int) -> str:
     if depth == 0:
         latin, total = _reply_letter_counts(text)
         opts = replace(opts, latin=total == 0 or latin * 2 >= total)
+    opts = replace(opts, span=stash.value_of)
     entries: list = []
     blocks = segment(lines)
     for i, block in enumerate(blocks):
         block.meta["prev"] = blocks[i - 1].lines[-1] if i else None
         block.meta["next"] = blocks[i + 1].lines[0] if i + 1 < len(blocks) else None
         block.meta["span"] = stash.value_of
+    _nearest_text(blocks)
     for block in blocks:
         out = _render(block, opts, depth)
         if out is None:
@@ -148,6 +150,20 @@ def _process(text: str, opts: Options, depth: int) -> str:
     for line in _normalize(entries):
         final.extend(stash.restore(line))
     return "\n".join(final)
+
+
+def _nearest_text(blocks: list[Block]) -> None:
+    """Record the nearest non-blank line before and after each block (``prev_text``, ``next_text``)."""
+    last = None
+    for block in blocks:
+        block.meta["prev_text"] = last
+        if block.kind != "blank":
+            last = block.lines[-1]
+    following = None
+    for block in reversed(blocks):
+        block.meta["next_text"] = following
+        if block.kind != "blank":
+            following = block.lines[0]
 
 
 def _inline_fn(opts: Options):

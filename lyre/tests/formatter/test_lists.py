@@ -57,12 +57,12 @@ def test_non_latin_list_gets_numbers_only():
 
 def test_indented_code_in_item_keeps_bytes():
     out = plain("- Example:\n\n      print(\"✅ **x**\")\n\n- next")
-    assert out == "2 items.\n1, Example:\n\n      print(\"✅ **x**\")\n\n2, next"
+    assert out == "2 items.\n1, Example:\n\nCode, 1 line:\n\n      print(\"✅ **x**\")\n\nEnd of code.\n\n2, next"
 
 
 def test_fence_opened_on_item_line():
     out = plain("- ```py\n  x='**'\n  ```\n- after")
-    assert out == "2 items.\n1,\n```py\n  x='**'\n  ```\n2, after"
+    assert out == "2 items.\n1,\nPython code, 1 line:\n```py\n  x='**'\n  ```\nEnd of code.\n2, after"
 
 
 def test_ac18_three_levels_with_fence_in_deepest_item():
@@ -78,7 +78,7 @@ def test_ac18_three_levels_with_fence_in_deepest_item():
             continue
         if not fence:
             assert len(line) - len(line.lstrip(" ")) < 4, line
-    assert once.count("code") == 0  # no code labels yet (R7), and none added on the second pass
+    assert once.count("Python code, 1 line:") == once.count("End of code.") == 1  # one R7 label pair
 
 
 CASES = [NESTED, "5. Five\n6. Six", "- [x] Done", "- a\n  - b\n    - c\n      - d", "- Example:\n\n      x = 1\n\n- n",

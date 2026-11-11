@@ -22,7 +22,7 @@ def md(text: str, **kw) -> str:
     ("_italic_ word", "italic word"),
     ("***both*** word", "both word"),
     ("~~gone~~ word", "(removed: gone) word"),
-    ("**[docs](https://x.test/a_b_c)**", "[docs](https://x.test/a_b_c)"),
+    ("**[docs](https://x.test/a_b_c)**", "docs, link: https://x.test/a_b_c"),
     ("- *item* one\n- __two__", "2 items.\n1, item one\n2, two"),
 ])
 def test_emphasis_plain(text, expected):
@@ -95,12 +95,12 @@ def test_nested_emphasis_resolves_in_one_pass(text, expected):
 
 def test_quoted_indented_code_stays_code():
     once = plain("before\n>\n>     **code**")
-    assert once == "before\n\n    **code**"
+    assert once == "before\n\nCode, 1 line:\n\n    **code**\n\nEnd of code."
     assert plain(once) == once
 
 
 def test_quoted_code_keeps_trailing_spaces():
-    assert plain("> ```py\n> x = 1  \n> ```") == "```py\nx = 1  \n```"
+    assert plain("> ```py\n> x = 1  \n> ```") == "Python code, 1 line:\n```py\nx = 1  \n```\nEnd of code."
 
 
 def test_over_depth_quote_left_whole():
@@ -127,7 +127,7 @@ def test_quote_markdown_profile_keeps_markers_and_cleans_strikethrough():
 def test_quoted_code_survives_marker_removal():
     text = "> intro **a**\n>\n> ```py\n> x = '**y**'\n> ```"
     out = plain(text)
-    assert out == "intro a\n\n```py\nx = '**y**'\n```"
+    assert out == "intro a\n\nPython code, 1 line:\n```py\nx = '**y**'\n```\nEnd of code."
 
 
 CASES = [

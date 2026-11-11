@@ -13,6 +13,7 @@ from dataclasses import dataclass, field
 from ..model import Block, Options
 from ..spans import LIST_ITEM_RE, indent_width, is_block_token_line
 from . import InlineFn, register_block_rule
+from .code import already_labelled, labelled
 
 
 @dataclass
@@ -99,19 +100,29 @@ def _emit(lst: _List, opts: Options, inline: InlineFn, out: list[str]) -> None:
             # The item is a code block: number on its own line, code below it, so the fence
             # starts a line and stays protected on the next pass.
             out.append(pad + _label(lst, item.number, opts).rstrip())
-            out.append(pad + raw)
+            out.extend(pad + line if line else line for line in labelled(raw, opts) or [raw])
         else:
             text = inline(_task(raw, opts)).strip() or raw
             out.append(pad + _label(lst, item.number, opts) + text)
-        for kind, value in item.extras:
+        for index, (kind, value) in enumerate(item.extras):
             if kind == "list":
                 _emit(value, opts, inline, out)
             elif kind == "blank":
                 out.append("")
             elif is_block_token_line(value):
-                out.append(pad + value)  # protected code: restored byte for byte later
+                # Protected code, restored byte for byte later; labelled here because the list
+                # rule owns it (a second pass sees it outside the list and must find the labels).
+                lines = None if _labelled_nearby(item.extras, index) else labelled(value, opts)
+                out.extend(pad + line if line else line for line in lines or [value])
             else:
                 out.append(pad + (inline(value).strip() or value))
+
+
+def _labelled_nearby(extras: list, index: int) -> bool:
+    texts = [value for kind, value in extras if kind == "line"]
+    lines = [value for kind, value in extras[:index] if kind == "line"]
+    after = [value for kind, value in extras[index + 1:] if kind == "line"]
+    return bool(texts) and already_labelled(lines[-1] if lines else None, after[0] if after else None)
 
 
 def lists(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
