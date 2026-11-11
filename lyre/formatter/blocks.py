@@ -96,8 +96,8 @@ def _paragraph(lines: list[str], i: int) -> tuple[Block, int]:
         if SETEXT_RE.match(lines[j]):
             level = 1 if lines[j].strip()[0] == "=" else 2
             return Block("heading", lines[i:j + 1], {"level": level, "setext": True}), j + 1
-        if _starts_block(lines[j]):
-            break
+        if _starts_block(lines[j]) or _is_table_start(lines, j):
+            break  # a table may interrupt a paragraph (GFM), as in "Results:" over a table
         j += 1
     return Block("paragraph", lines[i:j]), j
 
