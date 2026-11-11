@@ -614,6 +614,71 @@ def test_code_span_before_tag_shaped_literal_is_protected(temp_rules):
     assert format_for_speech(once, profile="plain") == once
 
 
+@pytest.mark.parametrize("text", [
+    '<https://example.test/`x`/**literal**> and **prose**',
+    'https://example.test/`x`/**literal**/end and **prose**',
+    'https://example.test/`x/**literal**/end\n**prose** `',
+])
+def test_url_backticks_do_not_break_destination_protection(temp_rules, text):
+    _strip(temp_rules)
+    destination = text.split()[0]
+    once = format_for_speech(text, profile="plain")
+    assert destination in once
+    assert "**prose**" not in once
+    assert format_for_speech(once, profile="plain") == once
+
+
+@pytest.mark.parametrize("item,heading", [
+    ("-   item", "  # Heading"),
+    ("1.  item", "   # Heading"),
+    ("-\titem", "  # Heading"),
+])
+def test_heading_left_of_gap_aware_item_content_ends_list(temp_rules, item, heading):
+    _strip(temp_rules)
+    _, add_block = temp_rules
+    seen = []
+    add_block("heading", lambda b, o, inline: (seen.append(b.lines), None)[1])
+    text = f"{item}\n{heading}\n\n**prose**"
+    once = format_for_speech(text, profile="plain")
+    assert seen == [[heading]]
+    assert "**prose**" not in once
+    assert format_for_speech(once, profile="plain") == once
+
+
+@pytest.mark.parametrize("quote", [
+    '> `**first**\n**second**` and **inside**',
+    '> intro\n> `**first**\n**second**` and **inside**',
+    '> ``**first**\n**second**``',
+    '> > `**first**\n**second**`',
+])
+def test_lazy_quote_code_continuation_is_preserved(temp_rules, quote):
+    _strip(temp_rules)
+    text = quote + "\n\n**prose**"
+    once = format_for_speech(text, profile="plain")
+    assert quote in once  # unsupported lazy containers are conservatively kept intact
+    assert "**prose**" not in once
+    assert format_for_speech(once, profile="plain") == once
+
+
+@pytest.mark.parametrize("quote", ['> `unclosed\n>', '> ```\n> `unclosed\n> ```'])
+def test_quote_does_not_capture_unrelated_paragraph(temp_rules, quote):
+    _strip(temp_rules)
+    once = format_for_speech(quote + "\n**prose** `", profile="plain")
+    assert "**prose**" not in once
+    assert format_for_speech(once, profile="plain") == once
+
+
+@pytest.mark.parametrize("marker", ["-     ", "1.     ", "+\t\t"])
+@pytest.mark.parametrize("indent", ["    ", "\t"])
+def test_indented_code_marker_is_literal_before_item_parsing(temp_rules, marker, indent):
+    _strip(temp_rules)
+    code = f"{indent}{marker}**first**\n{indent}**second**"
+    once = format_for_speech(code + "\n\n**prose**", profile="plain")
+    assert code in once
+    assert "**prose**" not in once
+    assert format_for_speech(once, profile="plain") == once
+
+
 def test_guard_does_not_expose_display_math_opener(temp_rules):
     _strip(temp_rules)
     _, add_block = temp_rules
