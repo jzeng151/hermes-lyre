@@ -36,3 +36,16 @@ def test_trees_braille_and_code_untouched(text):
 def test_idempotent(text):
     once = format_for_speech(text, profile="plain")
     assert format_for_speech(once, profile="plain") == once
+
+
+def test_break_before_indented_code_is_kept():
+    text = "- item\n***\n\n    **code**"
+    once = format_for_speech(text, profile="plain")
+    assert "***" in once.split("\n") and "    **code**" in once.split("\n")
+    assert format_for_speech(once, profile="plain") == once
+
+
+def test_removed_drawing_line_keeps_quotes_apart():
+    once = format_for_speech("> ```\n──\n> ```\n> **literal**", profile="plain")
+    assert "**literal**" in once
+    assert format_for_speech(once, profile="plain") == once
