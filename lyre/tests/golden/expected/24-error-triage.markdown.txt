@@ -1,0 +1,13 @@
+### What went wrong
+
+The job hit `MemoryError` at step 3 (failed).
+
+**Likely cause:** the batch size is too large.
+
+**Fix:** set `batch_size: 16` in `config.yaml`, then rerun:
+
+Bash code, 1 line:
+```bash
+make train
+```
+End of code.

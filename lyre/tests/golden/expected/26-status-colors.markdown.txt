@@ -1,0 +1,7 @@
+Service health:
+
+4 items.
+1, API (green)
+2, Database (yellow) (high latency)
+3, Queue (red) down since 09:12
+4, Cache (pending) restarting
