@@ -19,16 +19,19 @@ from . import register_inline_rule
 _EMPHASIS = [
     re.compile(r"\*\*\*(?=\S)([^*\n]+?)(?<=\S)\*\*\*"),
     re.compile(r"\*\*(?=\S)([^*\n]+?)(?<=\S)\*\*"),
-    re.compile(r"(?<![\w.])__(?=\S)([^_\n]+?)(?<=\S)__(?=[\s,;:!?)]|$)"),
+    re.compile(r"(?<![\w.])__(?=\S)([^_\n]+?)(?<=\S)__(?=[\s,;:!?)\]]|$)"),
     # Single asterisks may sit inside a word (``un*believ*able``, CJK text) but not next to a
     # digit, so arithmetic such as ``2*3*4`` keeps its operators.
     re.compile(r"(?<![*\d])\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*(?![*\d])"),
-    re.compile(r"(?<![\w.])_(?=[^\s_])([^_\n]+?)(?<=[^\s_])_(?=[\s,;:!?)]|$)"),
+    re.compile(r"(?<![\w.])_(?=[^\s_])([^_\n]+?)(?<=[^\s_])_(?=[\s,;:!?)\]]|$)"),
 ]
 _STRIKE = re.compile(r"~~(?=\S)([^~\n]+?)(?<=\S)~~")
 
 
 def emphasis(text: str, opts: Options) -> str:
+    # Strikethrough first: ``~~__x__~~`` must see ``)`` after the underscores in this same call.
+    if opts.latin and "~~" in text:
+        text = _STRIKE.sub(r"(removed: \1)", text)
     if opts.profile == "plain" and ("*" in text or "_" in text):
         # Nested emphasis (``**bold *italic* text**``) resolves inside out, so repeat until
         # stable; each round removes at least one marker pair, and the bound keeps it cheap.
@@ -38,8 +41,6 @@ def emphasis(text: str, opts: Options) -> str:
                 text = pattern.sub(r"\1", text)
             if text == before:
                 break
-    if opts.latin and "~~" in text:
-        text = _STRIKE.sub(r"(removed: \1)", text)
     return text
 
 

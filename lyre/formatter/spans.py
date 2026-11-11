@@ -21,6 +21,8 @@ FENCE_OPEN_RE = re.compile(r"^([ \t]*)(`{3,}|~{3,})(.*)$")
 LIST_ITEM_RE = re.compile(r"^([ \t]*)([-*+]|\d{1,9}[.)])([ \t]+|$)")
 ESCAPE_RE = re.compile(r"\\[!-/:-@\[-`{-~]")
 HTML_TAG_RE = re.compile(r"""</?[A-Za-z][A-Za-z0-9-]*(?:\s(?:[^<>"'\n]|"[^"\n]*"|'[^'\n]*')*)?/?>""")
+# The same tag with attributes on later lines; only matches that cross a line are stashed this way.
+HTML_TAG_MULTILINE_RE = re.compile(r"""<[A-Za-z][A-Za-z0-9-]*\s(?:[^<>"']|"[^"]*"|'[^']*')*/?>""")
 INLINE_MATH_RE = re.compile(r"\$\$[^$\n]+\$\$")
 # A raw ``|`` is not valid in a URL (it is written %7C), and it ends a table cell.
 URL_RE = re.compile("(?:https?|ftp)://[^\\s<>|\ue000\ue001]+")
@@ -40,7 +42,7 @@ class Stash:
         return f"{OPEN}{kind}{len(self.values) - 1}{CLOSE}"
 
     def value_of(self, token: str) -> str | None:
-        """Original text of one inline token, for rules that must read a protected span."""
+        """Original text of one token, for rules that must read a protected span."""
         m = TOKEN_RE.fullmatch(token)
         return self.values[int(m.group(2))] if m else None
 
@@ -149,14 +151,35 @@ def _track_list(line: str, prev_blank: bool, list_col: int | None) -> int | None
 
 
 def _item_fence(line: str) -> tuple[int, re.Match] | None:
-    """A fence that opens right after a list marker (``- ```py``): (offset of the fence, match)."""
+    """A fence opening right after a list marker (``- ```py``): (offset of the fence, match).
+
+    Not when 5+ spaces follow the marker: that content is indented code, protected elsewhere.
+    """
     item = LIST_ITEM_RE.match(line)
-    if not item:
+    if not item or len(item.group(3)) > 4:
         return None
     fence = FENCE_OPEN_RE.match(line[item.end():])
     if not fence or (fence.group(2)[0] == "`" and "`" in fence.group(3)):
         return None
     return item.end(), fence
+
+
+def _item_fence_end(lines: list[str], start: int, fence: str, column: int) -> int:
+    """Closing line of a fence opened on an item line, searched only inside that item.
+
+    Without a closing fence inside the item, the block ends with the item's last line, so an
+    unclosed fence never swallows the items and prose after it.
+    """
+    char, size, last = fence[0], len(fence), start
+    for j in range(start + 1, len(lines)):
+        body = lines[j].strip()
+        if body and indent_width(lines[j]) < column:
+            break
+        if len(body) >= size and body == char * len(body):
+            return j
+        if body:
+            last = j
+    return last
 
 
 def protect_blocks(lines: list[str], stash: Stash) -> list[str]:
@@ -171,10 +194,9 @@ def protect_blocks(lines: list[str], stash: Stash) -> list[str]:
         item_fence = None if _code_threshold(line, prev_blank, list_col) is not None else _item_fence(line)
         if item_fence:
             offset, fence = item_fence
-            end = _fence_end(lines, i, fence.group(2))
-            value = "\n".join([line[offset:], *lines[i + 1:end + 1]])
-            out.append(line[:offset] + stash.put("f", value))
             list_col = _list_content_column(line)
+            end = _item_fence_end(lines, i, fence.group(2), list_col)
+            out.append(line[:offset] + stash.put("f", "\n".join([line[offset:], *lines[i + 1:end + 1]])))
             i, prev_blank = end + 1, False
             continue
         fence = FENCE_OPEN_RE.match(line)
@@ -191,10 +213,12 @@ def protect_blocks(lines: list[str], stash: Stash) -> list[str]:
                 continue
         item = LIST_ITEM_RE.match(line)
         if item and len(item.group(3)) > 4 and line[item.end():].strip():
-            # The item's content is indented code (marker, then 5+ spaces): keep the whole
-            # line as code; Lyre does not speak this rare form.
-            _stash_lines(out, lines, i, i, "c", stash)
-            i, prev_blank = i + 1, False
+            # The item's content is indented code (marker, then 5+ spaces): keep the item as
+            # code, with the code lines that continue it; Lyre does not speak this rare form.
+            column = indent_width(item.group(1)) + len(item.group(2)) + 1
+            end = _indented_end(lines, i, column + 4)
+            _stash_lines(out, lines, i, end, "c", stash)
+            i, prev_blank = end + 1, False
             continue
         threshold = _code_threshold(line, prev_blank, list_col)
         if threshold is not None:
@@ -328,7 +352,7 @@ def protect_code_spans(lines: list[str], stash: Stash, skip) -> list[str]:
 
     Consecutive non-blank lines that *skip* rejects are matched together, so a span opened on
     one line and closed on a later one becomes a single token whose value holds the newlines.
-    Link targets that cross lines are protected the same way.
+    Link targets and HTML tags that cross lines are protected the same way.
     """
     out: list[str] = []
     group: list[str] = []
@@ -338,6 +362,9 @@ def protect_code_spans(lines: list[str], stash: Stash, skip) -> list[str]:
             text = _protect_code_spans("\n".join(group), stash)
             if "](" in text:
                 text = _protect_link_targets(text, stash, multiline_only=True)
+            if "<" in text:
+                text = HTML_TAG_MULTILINE_RE.sub(
+                    lambda m: stash.put("h", m.group(0)) if "\n" in m.group(0) else m.group(0), text)
             out.extend(text.split("\n"))
             group.clear()
 
