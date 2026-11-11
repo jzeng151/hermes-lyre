@@ -25,7 +25,7 @@ _EMPHASIS = [
     re.compile(r"(?<![*\d])\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*(?![*\d])"),
     re.compile(r"(?<![\w.])_(?=[^\s_])([^_\n]+?)(?<=[^\s_])_(?=[\s,;:!?)]|$)"),
 ]
-_STRIKE = re.compile(r"~~(?=\S)([^~\n]+?)(?<=\S)~~")
+_STRIKE = re.compile(r"(?<!~)~~(?=\S)([^~\n]+?)(?<=\S)~~(?!~)")
 
 
 def paired_delimiter_edges(text: str) -> tuple[set[int], set[int]]:
