@@ -22,6 +22,7 @@ Owner: @jzeng151
 | AC-12 Verbosity keeps all information | Parametrized test | | Pending |
 | AC-13 Exception returns input | Unit test with a rule forced to raise | | Pending |
 | AC-14 Survives core WhatsApp plain-output formatter | Round-trip test | | Pending |
+| AC-15 Escapes and inline code stable across passes | Unit test, plain profile | | Pending |
 
 ## Operational Evidence
 
@@ -36,7 +37,7 @@ Owner: @jzeng151
 - [ ] Read five golden outputs aloud with a screen reader and note anything that sounds wrong.
 - [ ] Review the round-trip outputs for each adapter by eye.
 - [ ] Confirm the fence decision from #2 is reflected in R7 and its tests.
-- [ ] Confirm the inline-code backtick finding from #2 (Q5) is reflected in R8 and its tests.
+- [ ] Confirm the backtick and backslash finding from #2 (Q5) is reflected in R1, R8 and their tests.
 
 ## Known Gaps
 

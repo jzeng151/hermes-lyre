@@ -39,7 +39,7 @@ def format_for_speech(
 ## Processing model
 
 1. **Size gate.** Over the byte cap: return input.
-2. **Protect spans.** Fenced code blocks (``` and ~~~, with or without an info string), indented code blocks (4 spaces or a tab, not inside a list item), inline code, bare URLs and link targets are replaced by placeholders. Nothing inside a placeholder is ever modified.
+2. **Protect spans.** Fenced code blocks (``` and ~~~, with or without an info string), indented code blocks (4 spaces or a tab, not inside a list item), inline code, backslash escapes (`\` followed by an ASCII punctuation character), bare URLs and link targets are replaced by placeholders. Nothing inside a placeholder is ever modified.
 3. **Block pass.** Lines are grouped into blocks: table, list, heading, rule, blockquote, paragraph. One linear pass; no backtracking regexes.
 4. **Rules.** Each block is handed to the rule that owns it. Inline rules (emphasis, emoji, links) run on paragraph, list item, heading and table cell text.
 5. **Restore spans**, applying the code and link rules to the placeholders' surroundings.
@@ -64,8 +64,9 @@ Each rule lists the output at `normal` verbosity, then the differences at `brief
 | `*italic*`, `_italic_` | `italic` |
 | `***both***` | `both` |
 | `~~gone~~` | `(removed: gone)` |
-| `\*` and other backslash escapes | the literal character |
+| `\*` and other backslash escapes | unchanged, backslash kept; an escaped character never pairs as a marker |
 
+- Backslash escapes stay as written. Turning `\*literal\*` into `*literal*` would let a second pass strip those asterisks, breaking AC-5. The one exception is `\|` inside a table that R6 converts, because the converted output is never a table again.
 - Markers are removed only when they pair on the same line. An unpaired `*` or `_` is left as is (for example `2 * 3`, `snake_case`).
 - `brief`: strikethrough becomes `(removed: gone)` as well; no difference.
 - `full`: no difference.
@@ -169,7 +170,7 @@ End of table.
 
 - Every cell is kept. Empty cells are spoken as `blank`.
 - Cell text gets inline rules (R1, R4, R8). Inline code and URLs in cells are protected.
-- Escaped pipes (`\|`) inside cells are kept as `|` in the cell text and do not split cells.
+- Escaped pipes (`\|`) inside cells do not split cells and become `|` in the cell text (the R1 exception).
 - Alignment colons in the separator row are ignored.
 - A table passes through **byte-identical** if any of these hold:
   - no separator row directly under the header,
@@ -245,7 +246,8 @@ End of code.
 - [ ] **AC-4** Given a reply that is only `✅🎉`, when formatted with `emoji_policy: words`, then the output is `(done)`.
 - [ ] **AC-5** Given any input, when formatted twice with the same arguments, then the second output equals the first.
 - [ ] **AC-6** Given code blocks containing `**`, `|`, `#` and emoji, when formatted, then the code contents are byte-identical.
-- [ ] **AC-7** Given escaped pipes, inline code, indented code and an unclosed fence, when formatted, then those spans are unchanged.
+- [ ] **AC-7** Given escaped pipes outside tables, backslash escapes, inline code, indented code and an unclosed fence, when formatted, then those spans are unchanged.
+- [ ] **AC-15** Given `\*literal\*` and `` `**literal**` `` in prose, when formatted twice on the `plain` profile, then both are unchanged after each pass.
 - [ ] **AC-8** Given input over 200,000 bytes, when formatted, then the output is the input object unchanged and the call returns in under 5 ms.
 - [ ] **AC-9** Given a 20 KB reply mixing every rule, when formatted, then it finishes in under 50 ms on CI hardware.
 - [ ] **AC-10** Given a mostly Latin-script reply that the formatter transformed (not returned unchanged under AC-8 or AC-13), then in every transformed region the output contains no `|---` and no emoji (unless `emoji_policy: keep`); and on the `plain` profile also no paired `**` and no line starting with `#`. Transformed regions exclude protected spans and tables passed through under AC-2 or `table_style: unchanged`. Non-Latin replies are exempt from the emoji clause, because Script detection keeps their status emoji.
@@ -272,7 +274,7 @@ End of code.
 - [ ] **Q2** Do Telegram, Discord and Slack screen readers announce rendered lists usefully enough that R5 should be skipped on the `markdown` profile? Decided by #2 and #13.
 - [ ] **Q3** Is the `markdown` platform list in the design doc correct for Teams, Mattermost and Google Chat? Checked against each adapter's `format_message` in #13.
 - [ ] **Q4** Are the table pass-through limits (50 rows, 10 columns, 500 characters) right? Tuned with the golden corpus in #15.
-- [ ] **Q5** Do VoiceOver and NVDA at their default punctuation levels announce the backticks around inline code? If they do, choose another boundary that a second pass can recognize, and update R8, AC-5 and AC-6 together. Decided by the baseline test in #2.
+- [ ] **Q5** Do VoiceOver and NVDA at their default punctuation levels announce the backticks around inline code or the backslash in escapes? If they do, choose another boundary that a second pass can recognize, and update R1, R8, AC-5, AC-6 and AC-15 together. Decided by the baseline test in #2.
 
 ## Output / Deliverables
 

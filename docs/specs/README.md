@@ -31,7 +31,7 @@ Each spec follows the spec-coding.dev templates: the SDD packet (spec, tasks, ev
 | speech-formatter | Q2 Lists on markdown clients | #2, #13 |
 | speech-formatter | Q3 Markdown platform list | #13 |
 | speech-formatter | Q4 Table pass-through limits | #15 |
-| speech-formatter | Q5 Backticks around inline code spoken aloud | #2 |
+| speech-formatter | Q5 Backticks and escape backslashes spoken aloud | #2 |
 | a11y-command | Q2 Surface for `local` commands | #16 |
 | plain-progress | Q1 to Q3 | Before starting #22 |
 | accessible-web-chat | Q1 to Q4 | Before starting #23 |
