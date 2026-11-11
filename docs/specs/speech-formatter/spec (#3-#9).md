@@ -41,10 +41,11 @@ def format_for_speech(
 
 1. **Size gate.** Over the byte cap: return input.
 2. **Protect spans.** In this order: fenced code blocks (``` and ~~~, with or without an info string, at any indentation, so a fence nested in list output is still a fence on the next pass), display math (`$$...$$`, on one line or across lines), indented code blocks (after a blank line: 4 spaces or a tab at the top level, or the list item's content column plus 4 inside a list item), inline code, backslash escapes (`\` followed by an ASCII punctuation character), HTML tags, bare URLs and link targets are replaced by placeholders. Nothing inside a placeholder is ever modified. Lyre's own output never starts a line with 4 or more spaces outside a protected span, so a second pass never finds new indented code.
-3. **Block pass.** Lines are grouped into blocks: table, list, heading, rule, blockquote, paragraph. One linear pass; no backtracking regexes.
+3. **Block pass.** Lines are grouped into blocks: table, list, heading, rule, blockquote, paragraph. One linear pass; no backtracking regexes. A blockquote's contents, with the `>` markers removed, go through this block pass themselves, so `> # Title` is a heading inside a quote.
 4. **Rules.** Each block is handed to the rule that owns it. Inline rules (emphasis, emoji, links) run on paragraph, list item, heading and table cell text.
 5. **Restore spans**, applying the code and link rules to the placeholders' surroundings.
-6. **Normalize whitespace** introduced by removals only: no more than one blank line in a row, no trailing spaces on changed lines. Unchanged lines keep their original spacing.
+6. **Guard against exposed block syntax.** If an inline rewrite leaves a line that was paragraph text in the input starting, after its indentation, with block syntax it did not start with before (a list marker `-`, `*`, `+`, `N.` or `N)`; `#`; `>`; `|`; a thematic break; a code fence), that line is restored to its input text. Examples: `[- Build](https://x.test)`, `🎉 1. Done` and `**# Title**` at the start of a line stay as written. The line keeps some noise, but no structure is invented and the second pass sees the same line and makes the same decision.
+7. **Normalize whitespace** introduced by removals only: no more than one blank line in a row, no trailing spaces on changed lines. Unchanged lines keep their original spacing.
 
 ## Script detection
 
@@ -237,7 +238,7 @@ End of code.
 
 ### R9. Blockquotes
 
-- `> text` -> `text` (the marker is removed; nested `> >` too).
+- `> text` -> `text` (the marker is removed; nested `> >` too). The quote's contents then get the block rules (processing step 3).
 - `full`: the first line of each quote is prefixed `Quote: `.
 - Plain only.
 
@@ -264,6 +265,7 @@ End of code.
 - [ ] **AC-19** Given a reply that is only `🎉`, or only decorative emoji and whitespace, then the output is the input unchanged.
 - [ ] **AC-20** Given unfenced tree output with box-drawing characters, when formatted twice, then those lines are unchanged.
 - [ ] **AC-21** Given a top-level indented code block and a list item containing indented code (`- Example:`, a blank line, then six-space-indented Python with `**` and an emoji in a string), when formatted twice, then each block's lines are byte-identical, each has exactly one label pair, and the output equals the first pass.
+- [ ] **AC-22** Given lines starting with `[- Build](https://x.test)`, `🎉 1. Done`, `**# Title**` and `> # Quoted title`, when formatted twice, then the first three lines are unchanged, the quote becomes a heading inside the quote, no list, heading or quote structure appears that the input did not have, and the second pass equals the first.
 
 ## Edge Cases
 
