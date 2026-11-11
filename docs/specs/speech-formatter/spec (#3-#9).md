@@ -45,7 +45,7 @@ def format_for_speech(
 4. **Rules.** Each block is handed to the rule that owns it. Inline rules (emphasis, emoji, links) run on paragraph, list item, heading and table cell text.
 5. **Restore spans**, applying the code and link rules to the placeholders' surroundings.
 6. **Guard against exposed block syntax.** If any rule, inline or block (heading, quote, table, list), produces an output line that starts, after its indentation, with block syntax the input line it came from did not start with (a list marker `-`, `*`, `+`, `N.` or `N)`; `#`; `>`; `|`; a thematic break; a code fence; or a Setext underline, a line of only `=` or only `-` characters, which is block syntax only because of the non-blank line above it), that line is restored to its input text. Lyre's own fixed forms (`N, item`, count lines, labels, `Row N:`) never start with block syntax, so they are unaffected. Inline rules are guarded line by line; a block rule's output is restored as a whole block if any line exposes syntax. Quote output (R9) is exempt, because its contents already passed through the guard as a container (ADR 0003). Examples: `[- Build](https://x.test)`, `🎉 1. Done`, `**# Title**` and the heading `# - Build` stay as written. The line keeps some noise, but no structure is invented and the second pass sees the same line and makes the same decision. Where the syntax only appears because of the rendered block above (a heading rewritten into a paragraph line over a `===` paragraph, or a table separator under a new line with a pipe), a blank line is inserted between the two blocks, which keeps them as separate as they were in the input.
-7. **Normalize whitespace** introduced by removals only: no more than one blank line in a row, no trailing spaces on changed lines. A removed block between two blocks leaves exactly one blank line, so its neighbours never join. Unchanged lines keep their original spacing.
+7. **Normalize whitespace** introduced by removals only: no more than one blank line in a row, no trailing spaces on changed lines. A removed block between two blocks leaves exactly one blank line, so its neighbours never join. A block that a rule would remove or blank out is kept when indented code is the next text after it (a break, empty heading, empty quote or drawing line may be what ends a list above; without it the code would become list text on the next pass). Unchanged lines keep their original spacing.
 
 ## Script detection
 
@@ -89,7 +89,7 @@ Each rule lists the output at `normal` verbosity, then the differences at `brief
 
 ### R3. Rules, box drawing and decoration
 
-- A line that is only `---`, `***`, `___` (thematic break) becomes a blank line. It is kept when indented code follows it, because it may be what ends a list above; without it the code would become list text on the next pass.
+- A line that is only `---`, `***`, `___` (thematic break) becomes a blank line.
 - A line made only of box-drawing characters (U+2500 to U+257F), block elements (U+2580 to U+259F) and spaces is removed.
 - A line that mixes box-drawing characters with text (unfenced tree output such as `│   ├── src/`) is left unchanged. Replacing the characters with spaces would indent the line 4 or more spaces, which a second pass reads as code; dropping them would lose the nesting. Whether screen readers speak them is Q6.
 - Braille Patterns (U+2800 to U+28FF) are never removed or changed. Terminal spinners use them, but so does real Braille text, and the two cannot be told apart; spinners rarely appear in a final reply.
@@ -245,7 +245,7 @@ End of code.
 - `> text` -> `text` (the marker is removed; nested `> >` too). The contents are processed as a container (processing step 3) on both profiles; on the `markdown` profile the markers are then put back on every output line of the quote, so only the quote's contents change.
 - `full`: a `Quote:` line before the quote's contents and an `End of quote.` line after them (plain profile only). The announcement is on its own line, never prefixed to the first line, so labels inside the quote (such as an R7 code label) stay recognizable on the next pass.
 - Removing the markers is plain only; container processing of the contents runs on both profiles.
-- The markers stay (the contents are still processed) when the quote's processed contents hold an unclosed fence, an unclosed `$$`, a list marker or indented code, because removing them would change how the rest of the reply parses (a list anywhere above would take indented code over as item text).
+- The markers stay (the contents are still processed) when the quote's processed contents hold an unclosed fence, an indented fence opener, an unclosed `$$`, a list marker or indented code, because removing them would change how the rest of the reply parses (a list anywhere above would take indented code over as item text).
 - An empty quote becomes a blank line, so the blocks around it stay apart.
 - When text sits directly above the quote, the unwrapped contents start after a blank line, so they stay a separate block on the next pass and quoted prose is not merged into the paragraph above. The quote's contents keep their own spacing; only the outer pass trims nothing inside them.
 
