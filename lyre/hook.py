@@ -44,7 +44,7 @@ def surface(platform: str) -> tuple[str, str] | None:
     return ("messaging", "markdown" if name in _MARKDOWN_MESSAGING else "plain")
 
 
-def rewrite(ctx, response_text: str, platform: str) -> str | None:
+def rewrite(ctx, response_text: str, platform: str, turn_id: str = "") -> str | None:
     """Steps 1 to 5 of the spec's decision order. May raise; the hook catches."""
     resolved = surface(platform)
     if resolved is None or not isinstance(response_text, str):
@@ -53,9 +53,15 @@ def rewrite(ctx, response_text: str, platform: str) -> str | None:
     group, profile = resolved
     if not settings.enabled or not settings.groups.get(group, False):
         return None
+
+    def failed(exc: Exception) -> None:
+        # Called inside the formatter's except block, so exc_info carries the traceback (ADR 0005).
+        logger.warning("lyre: rewrite skipped (%s) turn=%s", type(exc).__name__, turn_id, exc_info=True)
+
     start = time.perf_counter()
     result = format_for_speech(response_text, profile=profile, verbosity=settings.verbosity,
-                               emoji_policy=settings.emoji_policy, table_style=settings.table_style)
+                               emoji_policy=settings.emoji_policy, table_style=settings.table_style,
+                               on_error=failed)
     elapsed_ms = (time.perf_counter() - start) * 1000
     if elapsed_ms > SLOW_MS:
         logger.info("lyre: formatting took %.0f ms for %d characters", elapsed_ms, len(response_text))
@@ -70,7 +76,7 @@ def make_hook(ctx):
     def transform_llm_output(response_text: str = "", platform: str = "", turn_id: str = "",
                              **kwargs: Any) -> str | None:
         try:
-            return rewrite(ctx, response_text, platform)
+            return rewrite(ctx, response_text, platform, turn_id)
         except Exception as exc:  # Lyre must never cost the user a reply (ADR 0005)
             logger.warning("lyre: rewrite skipped (%s) turn=%s", type(exc).__name__, turn_id, exc_info=True)
             return None

@@ -145,6 +145,7 @@ def test_settings_passed_to_formatter(monkeypatch):
     monkeypatch.setattr(hook, "format_for_speech", spy)
     _, cb = callback(enabled=True, verbosity="brief", emoji_policy="keep", table_style="unchanged")
     cb(response_text=REPLY, platform="whatsapp")
+    assert callable(seen.pop("on_error"))
     assert seen == {"profile": "plain", "verbosity": "brief", "emoji_policy": "keep", "table_style": "unchanged"}
 
 
@@ -155,3 +156,23 @@ def test_slow_format_logs_info_without_text(monkeypatch, caplog):
     with caplog.at_level(logging.INFO, logger="lyre.hook"):
         cb(response_text=REPLY, platform="cli")
     assert "500 ms" in caplog.text and "Build" not in caplog.text
+
+
+def test_failing_rule_inside_the_formatter_is_logged(caplog):
+    from lyre.formatter import rules
+
+    def boom(text, opts):
+        raise RuntimeError("rule broke")
+
+    saved = rules.snapshot()
+    rules.register_inline_rule("boom", boom, order=1)
+    try:
+        _, cb = callback(enabled=True)
+        with caplog.at_level(logging.WARNING, logger="lyre.hook"):
+            assert cb(response_text="SECRET-MARKER **x**", platform="cli", turn_id="t-7") is None
+    finally:
+        rules.restore(saved)
+    records = [r for r in caplog.records if r.name == "lyre.hook"]
+    assert len(records) == 1 and records[0].exc_info is not None
+    assert "RuntimeError" in records[0].getMessage() and "turn=t-7" in records[0].getMessage()
+    assert "SECRET-MARKER" not in caplog.text

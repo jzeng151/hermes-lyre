@@ -13,6 +13,7 @@ The hook catches every exception and logs one `WARNING` with `exc_info=True`: `l
 
 - Python's standard traceback lists file names, line numbers and source lines, not local variables, so the reply text is not in it.
 - The formatter never puts reply text into an exception message: its messages name the bad option or the rule that broke a contract (`an inline rule produced a newline`). A test feeds a reply with a marker string through a raising formatter and checks the log holds neither the marker nor the reply.
+- The formatter catches its own failures and returns the input (its fail-open contract), so the hook could not see them. `format_for_speech` takes an optional keyword-only `on_error` callback, called inside its `except` block; the hook passes one that logs the same warning. The formatter itself still does no I/O.
 - The hook spec's error table is updated to match.
 
 ## Consequences
