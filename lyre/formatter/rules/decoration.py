@@ -9,7 +9,6 @@ Braille Patterns, are never touched (spec R3).
 from __future__ import annotations
 
 from ..model import Block, Options
-from ..spans import block_token_kind
 from . import InlineFn, register_block_rule, register_inline_rule
 
 
@@ -18,11 +17,6 @@ def _is_drawing(ch: str) -> bool:
 
 
 def thematic_break(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
-    following = block.meta.get("next_text")
-    if following is not None and block_token_kind(following) == "code" and following.strip()[1] == "c":
-        # The break may be what ends a list above; without it, the indented code below would
-        # become list text on the next pass. Keeping a rule is cheaper than losing code.
-        return None
     prev, nxt = block.meta.get("prev"), block.meta.get("next")
     if prev is not None and prev.strip() and nxt is not None and nxt.strip():
         return [""]
