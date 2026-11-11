@@ -145,6 +145,139 @@ def test_syntax_filter_preserves_nonobvious_starters(line, prev, expected):
     assert blocks.syntax_categories(line, prev) == expected
 
 
+def test_marker_free_blocks_skip_all_inline_protection(monkeypatch):
+    def unexpected(*args, **kwargs):
+        pytest.fail("marker-free blocks need no cell, span, or nested-quote protection")
+
+    for name in ("protect_code_spans", "protect_inline", "protect_cells", "groupby"):
+        monkeypatch.setattr(core, name, unexpected)
+    text = "# Title\n\n**Build** passed\n\n| A | B |\n|---|---|\n| x | $10 |\n\n- one\n- two"
+    assert core._protect(text, Stash()) == text.split("\n")
+
+
+def test_unhandled_blocks_do_not_build_inline_pipeline(monkeypatch):
+    def unexpected(*args):
+        pytest.fail("blocks without a renderer or inline content need no inline pipeline")
+
+    monkeypatch.setattr(core, "_inline_fn", unexpected)
+    assert core._render(core.Block("blank", [""]), core.Options(profile="plain"), 0) is None
+
+
+def test_plain_block_starters_skip_patterns(monkeypatch):
+    class NoMatch:
+        def match(self, line):
+            pytest.fail("plain/table text cannot interrupt prose")
+
+    monkeypatch.setattr(blocks, "QUOTE_RE", NoMatch())
+    monkeypatch.setattr(blocks, "ATX_RE", NoMatch())
+    monkeypatch.setattr(blocks, "LIST_ITEM_RE", NoMatch())
+    assert not blocks.starts_block("  Ordinary prose")
+    assert not blocks.starts_block("| a | b |")
+
+
+def test_block_protection_skips_impossible_inputs(monkeypatch):
+    def unexpected(*args):
+        pytest.fail("no fences, math, indentation or wide item gaps: no block protection scan")
+
+    monkeypatch.setattr(spans, "_code_threshold", unexpected)
+    monkeypatch.setattr(spans, "_item_fence", unexpected)
+    monkeypatch.setattr(spans, "_track_list", unexpected)
+    lines = ["# Title", "", "**Build** passed", "|a|b|", "- one", "١. item", "[docs](url)"]
+    assert spans.protect_blocks(lines, Stash()) == lines
+
+
+def test_protected_block_kinds_skip_inline_protection(monkeypatch):
+    def unexpected(*args):
+        pytest.fail("blank, thematic and opaque blocks have no inline protection work")
+
+    monkeypatch.setattr(core, "protect_code_spans", unexpected)
+    monkeypatch.setattr(core, "protect_inline", unexpected)
+    text = "\n \n***\n\n```py\nx = 1\n```\n\n$$x$$"
+    stash = Stash()
+    protected = core._protect(text, stash)
+    assert "\n".join(part for line in protected for part in stash.restore(line)) == text
+
+
+def test_render_reuses_protection_segmentation(monkeypatch):
+    original = core.segment
+    calls = []
+
+    def tracked(lines):
+        calls.append(lines)
+        return original(lines)
+
+    monkeypatch.setattr(core, "segment", tracked)
+    text = "# Title\n\n**Build** passed\n\n| A | B |\n|---|---|\n| x | y |\n\n- one\n- two\n\n[docs](https://x.test)"
+    errors = []
+    out = core.format_for_speech(text, profile="plain", on_error=errors.append)
+    assert "Title." in out and "Table, 1 row" in out and "docs" in out
+    assert not errors
+    assert len(calls) == 1
+
+
+def test_ac8_payload_reuses_segmentation(monkeypatch):
+    from lyre.tests.test_hook import REPLY, TABLE, callback
+
+    original = core.segment
+    calls = []
+
+    def tracked(lines):
+        calls.append(len(lines))
+        return original(lines)
+
+    monkeypatch.setattr(core, "segment", tracked)
+    block = REPLY + "\n\n" + TABLE + "\n\n- one\n- two\n\n[docs](https://x.test/a?b=1)\n\n"
+    text = (block * (20_000 // len(block) + 1))[:20_000]
+    _, cb = callback(enabled=True)
+    assert "Table, 1 row" in cb(response_text=text, platform="cli")
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize(("text", "reusable"), [
+    ("# [Title](url)\n\n- [one](url)\n- two\n\nPlain `code`.", True),
+    ("| `a|b` | c |\n|---|---|\n| [x](url) | y |", True),
+    ("Plain \\*literal\\* and $$math$$.\nNext <b>line</b>.", True),
+    ("start `code\nend` tail\n===\n\n**Other**", False),
+    ("`a|b`\n---|---\nx|y", False),
+    ("> lazy `code\ncontinuation`\n\n**tail**", False),
+    ("> lazy words\ncontinuation\n\n**tail**", False),
+    ("- item\n  > plain quote\n\n**tail**", False),
+    ("- item\n\n  > quoted\n\n  continuation", False),
+    ("- item\n  > ```\n  > code\n  > ```\n\nPlain.", False),
+    ('<span title="one\ntwo">text\n\n- outside', False),
+    ("[id]:\n/destination\n\n- outside", True),
+])
+def test_reused_segmentation_matches_fresh_protected_scan(text, reusable):
+    stash = Stash()
+    reused = []
+    lines = core._protect(text, stash, reused)
+    assert bool(reused) is reusable
+    fresh = blocks.segment(lines)
+    if reusable:
+        assert reused == fresh
+    assert "\n".join(part for line in lines for part in stash.restore(line)) == text
+
+
+@pytest.mark.parametrize("text", [
+    "```py\nx\n```", "~~~\nx\n~~~", "$$x$$", "\u2003$$x$$", "    code", "\tcode",
+    "-     code", "١.     code", "-\t\tcode", "- ```py\n  x\n  ```",
+    "- item\n\n      code",
+])
+def test_block_protection_prefilter_keeps_all_block_forms(text):
+    stash = Stash()
+    lines = spans.protect_blocks(text.split("\n"), stash)
+    assert stash.values
+    assert "\n".join(part for line in lines for part in stash.restore(line)) == text
+
+
+@pytest.mark.parametrize("line", [
+    "# heading", "> quote", "- item", "_ _ _", "***", "١. item", "  + item", "\t2) item",
+    "\ue000f0\ue001", " \t\ue000m0\ue001",
+])
+def test_block_start_filter_preserves_supported_openers(line):
+    assert blocks.starts_block(line)
+
+
 def test_protection_segments_each_container_once(monkeypatch):
     original = core.segment
     calls = []

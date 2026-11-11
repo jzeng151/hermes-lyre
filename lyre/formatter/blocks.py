@@ -45,6 +45,9 @@ def _is_table_start(lines: list[str], i: int) -> bool:
 
 def starts_block(line: str) -> bool:
     """True when *line* interrupts a paragraph; inline content never continues across it."""
+    body = line.lstrip(" \t")
+    if not body or (body[0] not in "\ue000>#-*+_" and not body[0].isdecimal()):
+        return False
     return bool(block_token_kind(line) or QUOTE_RE.match(line) or ATX_RE.match(line)
                 or is_thematic_break(line) or LIST_ITEM_RE.match(line))
 
@@ -188,6 +191,27 @@ def _one_block(lines: list[str], i: int) -> tuple[Block, int]:
         j = _list_end(lines, i)
         return Block("list", lines[i:j]), j
     return _paragraph(lines, i)
+
+
+def same_block_shape(before: str, after: str) -> bool:
+    """Whether inline protection preserves every input used by segmentation.
+
+    Unchanged lines need no probes. Changed quotes require a fresh scan because their
+    contents control lazy continuation; a hidden pipe can likewise remove a table start.
+    """
+    if before == after:
+        return True
+    if QUOTE_RE.match(before) or QUOTE_RE.match(after):
+        return False
+
+    def shape(line: str) -> tuple:
+        atx, item, setext = ATX_RE.match(line), LIST_ITEM_RE.match(line), SETEXT_RE.match(line)
+        return (bool(line.strip()), indent_width(line), block_token_kind(line),
+                atx.group(0) if atx else None, item.group(0) if item else None,
+                setext.group(0) if setext else None, is_thematic_break(line),
+                "|" in line, is_table_separator(line) if "|" in line else False)
+
+    return shape(before) == shape(after)
 
 
 def segment(lines: list[str]) -> list[Block]:
