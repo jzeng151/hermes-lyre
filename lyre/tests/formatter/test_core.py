@@ -491,6 +491,19 @@ def test_break_inside_item_content_stays_in_the_list(temp_rules):
     assert seen == [["- a", "  ---", "- b"]]
 
 
+def test_on_error_receives_the_failure_and_input_is_returned(temp_rules):
+    add_inline, _ = temp_rules
+
+    def boom(text, opts):
+        raise RuntimeError("rule broke")
+
+    add_inline("boom", boom)
+    seen = []
+    text = "**x**"
+    assert format_for_speech(text, profile="plain", on_error=seen.append) is text
+    assert [type(e) for e in seen] == [RuntimeError]
+
+
 def test_many_unmatched_link_openers_stay_linear():
     text = "](" * 20000
     start = time.perf_counter()
