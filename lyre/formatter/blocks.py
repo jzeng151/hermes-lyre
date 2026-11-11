@@ -60,6 +60,8 @@ def syntax_categories(line: str, prev: str | None) -> set[str]:
         found.add("rule")
     if FENCE_RE.match(line):
         found.add("fence")
+    if line.lstrip().startswith("$$"):
+        found.add("math")  # a newly exposed opener can change which later lines are protected
     if SETEXT_RE.match(line) and prev is not None and prev.strip():
         found.add("setext")
     return found

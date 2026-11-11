@@ -252,7 +252,8 @@ def _escaped(line: str, index: int) -> bool:
 
 
 def _protect_code_spans(line: str, stash: Stash) -> str:
-    # Backticks inside an HTML tag (an attribute value) are not code-span delimiters.
+    # A tag can hide an opener, but not a closer: tag-shaped text after a code opener
+    # is literal code. Keep all runs so a closer inside that literal is still available.
     tags = [m.span() for m in HTML_TAG_MULTILINE_RE.finditer(line)] if "<" in line else []
     tag_ends = [end for _, end in tags]
     runs: list[tuple[int, int]] = []
@@ -264,9 +265,7 @@ def _protect_code_spans(line: str, stash: Stash) -> str:
         k = j
         while k < len(line) and line[k] == "`":
             k += 1
-        t = bisect.bisect_right(tag_ends, j)
-        if not (t < len(tags) and tags[t][0] < j):
-            runs.append((j, k - j))
+        runs.append((j, k - j))
         i = k
     if len(runs) < 2:
         return line
@@ -279,6 +278,10 @@ def _protect_code_spans(line: str, stash: Stash) -> str:
         if start < pos or _escaped(line, start):
             idx += 1
             continue
+        t = bisect.bisect_right(tag_ends, start)
+        if t < len(tags) and pos <= tags[t][0] < start:
+            idx += 1
+            continue  # a real HTML tag started outside any preceding code span
         same = by_len[size]
         nxt = bisect.bisect_right(same, idx)
         if nxt == len(same):
@@ -293,6 +296,7 @@ def _protect_code_spans(line: str, stash: Stash) -> str:
 
 
 MAX_UNMATCHED_TARGETS = 32
+REF_DEF_NEXT_LINE_RE = re.compile(r"^( {0,3}\[[^\]\n]+\]:[ \t]*\n[ \t]*)(<[^>\n]*>|\S+)", re.M)
 
 
 def _target_end(line: str, k: int) -> int | None:
@@ -391,6 +395,8 @@ def protect_code_spans(lines: list[str], stash: Stash, skip, starts_block=lambda
             text = _protect_code_spans("\n".join(group), stash)
             if "](" in text:
                 text = _protect_link_targets(text, stash, multiline_only=True)
+            if "]:" in text:
+                text = REF_DEF_NEXT_LINE_RE.sub(lambda m: m.group(1) + stash.put("t", m.group(2)), text)
             if "<" in text:
                 text = HTML_TAG_MULTILINE_RE.sub(
                     lambda m: stash.put("h", m.group(0)) if "\n" in m.group(0) else m.group(0), text)
@@ -433,6 +439,17 @@ def _sub_outside_urls(pattern: re.Pattern, kind: str, line: str, stash: Stash, s
 
 
 REF_DEF_RE = re.compile(r"^( {0,3}\[[^\]\n]+\]:[ \t]*)(<[^>\n]*>|\S+)")
+
+
+def protect_cells(line: str, stash: Stash) -> str:
+    """Protect each table cell separately; code spans cannot cross a cell boundary."""
+    parts, start = [], 0
+    for i, ch in enumerate(line):
+        if ch == "|" and not _escaped(line, i):
+            parts.extend((protect_inline(line[start:i], stash), "|"))
+            start = i + 1
+    parts.append(protect_inline(line[start:], stash))
+    return "".join(parts)
 
 
 def protect_inline(line: str, stash: Stash) -> str:
