@@ -85,6 +85,8 @@ def _imported_modules(path: Path) -> set[str]:
 
 
 def test_standard_library_only():
-    for path in PLUGIN_DIR.glob("*.py"):
+    for path in PLUGIN_DIR.rglob("*.py"):
+        if "tests" in path.relative_to(PLUGIN_DIR).parts:
+            continue
         outside = {m for m in _imported_modules(path) if m not in sys.stdlib_module_names}
-        assert not outside, f"{path.name} imports non-stdlib modules: {sorted(outside)}"
+        assert not outside, f"{path.relative_to(PLUGIN_DIR)} imports non-stdlib modules: {sorted(outside)}"

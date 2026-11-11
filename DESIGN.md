@@ -169,7 +169,10 @@ lyre/
   LICENSE, pytest.ini
   formatter/           replaces the scaffold's lyre/formatter.py stub (task T1)
     __init__.py        format_for_speech
-    core.py            line parser, protected spans, pipeline
+    core.py            pipeline: size gate, containers, guard, normalization
+    model.py           Options and Block types
+    spans.py           protected spans and placeholder tokens
+    blocks.py          block pass and block-syntax categories
     rules/             emphasis, headings, quotes, decoration, emoji, lists, tables, code, links
   tests/
     conftest.py, test_formatter.py   (from the scaffold)

@@ -1,0 +1,250 @@
+"""Span protection (processing step 2): code, math, escapes, HTML, URLs and link targets are
+swapped for placeholder tokens so no rule can change them, then restored at the end.
+
+Tokens are ``OPEN + kind + index + CLOSE`` built from private-use characters. The core refuses
+input that already contains either character, so a token can never collide with reply text.
+Block tokens (``f`` fenced code, ``m`` display math, ``c`` indented code) replace whole lines;
+inline tokens replace part of a line.
+"""
+
+from __future__ import annotations
+
+import bisect
+import re
+
+OPEN, CLOSE = "\ue000", "\ue001"
+TOKEN_RE = re.compile("\ue000([a-z])(\\d+)\ue001")
+BLOCK_TOKEN_RE = re.compile("^[ \t]*(\ue000[fmc]\\d+\ue001)[ \t]*$")
+BLOCK_KINDS = {"f": "code", "c": "code", "m": "math"}
+
+FENCE_OPEN_RE = re.compile(r"^([ \t]*)(`{3,}|~{3,})(.*)$")
+LIST_ITEM_RE = re.compile(r"^([ \t]*)([-*+]|\d{1,9}[.)])([ \t]+|$)")
+ESCAPE_RE = re.compile(r"\\[!-/:-@\[-`{-~]")
+HTML_TAG_RE = re.compile(r"</?[A-Za-z][A-Za-z0-9-]*(?:\s[^<>\n]*)?/?>")
+INLINE_MATH_RE = re.compile(r"\$\$[^$\n]+\$\$")
+URL_RE = re.compile("(?:https?|ftp)://[^\\s<>\ue000\ue001]+")
+URL_TRAILING = ".,;:!?'\"*_"
+
+
+class Stash:
+    """Holds the original text of every protected span, indexed by token."""
+
+    def __init__(self) -> None:
+        self.values: list[str] = []
+        self.kinds: list[str] = []
+
+    def put(self, kind: str, value: str) -> str:
+        self.values.append(value)
+        self.kinds.append(kind)
+        return f"{OPEN}{kind}{len(self.values) - 1}{CLOSE}"
+
+    def restore(self, line: str) -> list[str]:
+        """Return the original line(s) for one output line."""
+        whole = BLOCK_TOKEN_RE.match(line)
+        if whole:
+            return self._expand(whole.group(1)).split("\n")
+        return self._expand(line).split("\n")
+
+    def _expand(self, text: str) -> str:
+        # Values never contain tokens, so one pass suffices; the loop guards against a rule
+        # that copied a token into another span's surroundings.
+        for _ in range(4):
+            if OPEN not in text:
+                break
+            text = TOKEN_RE.sub(lambda m: self.values[int(m.group(2))], text)
+        return text
+
+
+def indent_width(line: str) -> int:
+    width = 0
+    for ch in line:
+        if ch == " ":
+            width += 1
+        elif ch == "\t":
+            width += 4 - width % 4
+        else:
+            break
+    return width
+
+
+def is_block_token_line(line: str) -> bool:
+    return bool(BLOCK_TOKEN_RE.match(line))
+
+
+def block_token_kind(line: str) -> str | None:
+    m = BLOCK_TOKEN_RE.match(line)
+    return BLOCK_KINDS[m.group(1)[1]] if m else None
+
+
+def _list_content_column(line: str) -> int | None:
+    m = LIST_ITEM_RE.match(line)
+    if not m:
+        return None
+    gap = len(m.group(3))
+    # A gap over 4 columns means the item text is indented code; content starts after 1 space.
+    return indent_width(m.group(1)) + len(m.group(2)) + (1 if gap == 0 or gap > 4 else gap)
+
+
+def _fence_end(lines: list[str], start: int, fence: str) -> int:
+    """Index of the closing fence line, or the last line when the fence never closes."""
+    char, size = fence[0], len(fence)
+    for j in range(start + 1, len(lines)):
+        body = lines[j].strip()
+        if len(body) >= size and body == char * len(body):
+            return j
+    return len(lines) - 1
+
+
+def _math_end(lines: list[str], start: int) -> int | None:
+    first = lines[start].strip()
+    if len(first) >= 4 and first.endswith("$$"):
+        return start
+    for j in range(start + 1, len(lines)):
+        if "$$" in lines[j]:
+            return j
+    return None
+
+
+def _indented_end(lines: list[str], start: int, threshold: int) -> int:
+    end = start
+    for j in range(start + 1, len(lines)):
+        if lines[j].strip() and indent_width(lines[j]) < threshold:
+            break
+        if lines[j].strip():
+            end = j
+    return end
+
+
+def _stash_lines(out: list[str], lines: list[str], start: int, end: int, kind: str, stash: Stash) -> None:
+    lead = lines[start][: len(lines[start]) - len(lines[start].lstrip(" \t"))]
+    out.append(lead + stash.put(kind, "\n".join(lines[start:end + 1])))
+
+
+def _code_threshold(line: str, prev_blank: bool, list_col: int | None) -> int | None:
+    """Indentation that makes *line* start an indented code block, if it can start one."""
+    if not prev_blank or not line.strip():
+        return None
+    threshold = 4 if list_col is None else list_col + 4
+    return threshold if indent_width(line) >= threshold else None
+
+
+def _track_list(line: str, prev_blank: bool, list_col: int | None) -> int | None:
+    col = _list_content_column(line)
+    if col is not None:
+        return col
+    if list_col is not None and line.strip() and prev_blank and indent_width(line) < list_col:
+        return None  # a paragraph after a blank line, outdented past the item, ends the list
+    return list_col
+
+
+def protect_blocks(lines: list[str], stash: Stash) -> list[str]:
+    """Replace fenced code, display math and indented code with one token line each."""
+    out: list[str] = []
+    i, prev_blank, list_col = 0, True, None
+    while i < len(lines):
+        line = lines[i]
+        fence = FENCE_OPEN_RE.match(line)
+        if fence and not (fence.group(2)[0] == "`" and "`" in fence.group(3)):
+            end = _fence_end(lines, i, fence.group(2))
+            _stash_lines(out, lines, i, end, "f", stash)
+            i, prev_blank = end + 1, False
+            continue
+        if line.lstrip().startswith("$$"):
+            end = _math_end(lines, i)
+            if end is not None:
+                _stash_lines(out, lines, i, end, "m", stash)
+                i, prev_blank = end + 1, False
+                continue
+        threshold = _code_threshold(line, prev_blank, list_col)
+        if threshold is not None:
+            end = _indented_end(lines, i, threshold)
+            _stash_lines(out, lines, i, end, "c", stash)
+            i, prev_blank = end + 1, False
+            continue
+        list_col = _track_list(line, prev_blank, list_col)
+        out.append(line)
+        prev_blank = not line.strip()
+        i += 1
+    return out
+
+
+def _protect_code_spans(line: str, stash: Stash) -> str:
+    runs: list[tuple[int, int]] = []
+    i = 0
+    while True:
+        j = line.find("`", i)
+        if j < 0:
+            break
+        k = j
+        while k < len(line) and line[k] == "`":
+            k += 1
+        runs.append((j, k - j))
+        i = k
+    if len(runs) < 2:
+        return line
+    by_len: dict[int, list[int]] = {}
+    for idx, (_, size) in enumerate(runs):
+        by_len.setdefault(size, []).append(idx)
+    out, pos, idx = [], 0, 0
+    while idx < len(runs):
+        start, size = runs[idx]
+        if start < pos or (start > 0 and line[start - 1] == "\\"):
+            idx += 1
+            continue
+        same = by_len[size]
+        nxt = bisect.bisect_right(same, idx)
+        if nxt == len(same):
+            idx += 1
+            continue
+        close = runs[same[nxt]][0]
+        out.append(line[pos:start])
+        out.append(stash.put("i", line[start:close + size]))
+        pos, idx = close + size, same[nxt] + 1
+    out.append(line[pos:])
+    return "".join(out)
+
+
+def _protect_link_targets(line: str, stash: Stash) -> str:
+    out, pos = [], 0
+    while True:
+        j = line.find("](", pos)
+        if j < 0:
+            break
+        depth, k = 1, j + 2
+        while k < len(line) and depth:
+            depth += {"(": 1, ")": -1}.get(line[k], 0)
+            k += 1
+        if depth:
+            break
+        out.append(line[pos:j + 2])
+        out.append(stash.put("t", line[j + 2:k - 1]))
+        out.append(")")
+        pos = k
+    out.append(line[pos:])
+    return "".join(out)
+
+
+def _url_token(match: re.Match, stash: Stash) -> str:
+    url = match.group(0)
+    tail = ""
+    while url and (url[-1] in URL_TRAILING or (url[-1] == ")" and url.count("(") < url.count(")"))):
+        tail = url[-1] + tail
+        url = url[:-1]
+    return stash.put("u", url) + tail
+
+
+def protect_inline(line: str, stash: Stash) -> str:
+    """Protect inline code, inline display math, escapes, HTML tags, link targets and URLs."""
+    if "`" in line:
+        line = _protect_code_spans(line, stash)
+    if "$$" in line:
+        line = INLINE_MATH_RE.sub(lambda m: stash.put("n", m.group(0)), line)
+    if "\\" in line:
+        line = ESCAPE_RE.sub(lambda m: stash.put("e", m.group(0)), line)
+    if "<" in line:
+        line = HTML_TAG_RE.sub(lambda m: stash.put("h", m.group(0)), line)
+    if "](" in line:
+        line = _protect_link_targets(line, stash)
+    if "://" in line:
+        line = URL_RE.sub(lambda m: _url_token(m, stash), line)
+    return line

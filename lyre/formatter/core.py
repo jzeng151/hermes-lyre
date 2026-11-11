@@ -1,0 +1,201 @@
+"""The speech-formatter pipeline (spec: Processing model).
+
+``format_for_speech`` never raises on reply content: any failure returns the input unchanged.
+Rules live in ``lyre.formatter.rules``; with none registered the output equals the input.
+"""
+
+from __future__ import annotations
+
+from dataclasses import replace
+from typing import cast
+
+from . import rules
+from .blocks import QUOTE_RE, segment, syntax_categories
+from .model import (EMOJI_POLICIES, PROFILES, TABLE_STYLES, VERBOSITIES, Block, EmojiPolicy, Options, Profile,
+                    TableStyle, Verbosity)
+from .spans import CLOSE, OPEN, TOKEN_RE, Stash, is_block_token_line, protect_blocks, protect_inline
+
+MAX_BYTES = 200_000
+MAX_QUOTE_DEPTH = 10
+_REMOVED = object()  # marks where a block was removed, for blank-line normalization
+
+
+def format_for_speech(
+    text: str,
+    *,
+    profile: Profile,
+    verbosity: Verbosity = "normal",
+    emoji_policy: EmojiPolicy = "words",
+    table_style: TableStyle = "sentences",
+) -> str:
+    """Return *text* rewritten for a screen reader.
+
+    Returns *text* itself when it is empty, over 200,000 UTF-8 bytes, contains Lyre's private
+    placeholder characters, mixes line endings, fails anywhere in the pipeline, or would become
+    empty. Raises ValueError only for an unknown option value, which is a caller bug, never a
+    property of the reply.
+    """
+    opts = _options(profile, verbosity, emoji_policy, table_style)
+    if not isinstance(text, str) or not text.strip() or OPEN in text or CLOSE in text:
+        return text
+    if len(text.encode("utf-8", "surrogatepass")) > MAX_BYTES:
+        return text
+    crlf = "\r\n" in text
+    bare = text.replace("\r\n", "")
+    if "\r" in bare or (crlf and "\n" in bare):
+        return text  # mixed or old-Mac line endings: leave alone rather than guess
+    work = text.replace("\r\n", "\n") if crlf else text
+    try:
+        out = _process(work, opts, depth=0)
+    except Exception:  # health: allow BLE001 -- contract: any failure returns the reply unchanged; the hook logs
+        return text
+    if out == work or not out.strip():
+        return text
+    return out.replace("\n", "\r\n") if crlf else out
+
+
+def _options(profile: str, verbosity: str, emoji_policy: str, table_style: str) -> Options:
+    for name, value, allowed in (("profile", profile, PROFILES), ("verbosity", verbosity, VERBOSITIES),
+                                 ("emoji_policy", emoji_policy, EMOJI_POLICIES),
+                                 ("table_style", table_style, TABLE_STYLES)):
+        if value not in allowed:
+            raise ValueError(f"{name} must be one of {', '.join(allowed)}; got {value!r}")
+    return Options(profile=cast(Profile, profile), verbosity=cast(Verbosity, verbosity),
+                   emoji_policy=cast(EmojiPolicy, emoji_policy), table_style=cast(TableStyle, table_style))
+
+
+def is_latin(lines: list[str]) -> bool:
+    """True unless fewer than half of the letters are Latin script (spec: Script detection)."""
+    latin = total = 0
+    for line in lines:
+        for ch in TOKEN_RE.sub("", line):
+            if ch.isalpha():
+                total += 1
+                code = ord(ch)
+                if code < 0x250 or 0x1E00 <= code <= 0x1EFF or 0x2C60 <= code <= 0x2C7F or 0xA720 <= code <= 0xA7FF:
+                    latin += 1
+    return total == 0 or latin * 2 >= total
+
+
+def _process(text: str, opts: Options, depth: int) -> str:
+    stash = Stash()
+    lines = protect_blocks(text.split("\n"), stash)
+    # Quote lines are protected inside their own container pass (steps 2-7 per quote).
+    lines = [line if is_block_token_line(line) or QUOTE_RE.match(line) else protect_inline(line, stash)
+             for line in lines]
+    if depth == 0:
+        opts = replace(opts, latin=is_latin(lines))
+    entries: list = []
+    for block in segment(lines):
+        out = _render(block, opts, depth)
+        if out is None:
+            entries.extend((line, False) for line in block.lines)
+        elif not out:
+            entries.append(_REMOVED)
+        else:
+            entries.extend((line.rstrip(" \t"), True) for line in out)
+    final: list[str] = []
+    for line in _normalize(entries):
+        final.extend(stash.restore(line))
+    return "\n".join(final)
+
+
+def _inline_fn(opts: Options):
+    active = rules.inline_rules()
+
+    def inline(text: str) -> str:
+        for rule in active:
+            text = rule(text, opts)
+            if "\n" in text:
+                raise ValueError("an inline rule produced a newline")
+        return text
+
+    return inline
+
+
+def _render(block: Block, opts: Options, depth: int) -> list[str] | None:
+    """Replacement lines for *block*, ``[]`` to remove it, or None when nothing changed."""
+    if block.kind == "blockquote":
+        out = _render_quote(block, opts, depth)
+    else:
+        inline = _inline_fn(opts)
+        rule = rules.block_rule(block.kind)
+        out = rule(block, opts, inline) if rule else None
+        if out is None and block.kind in ("paragraph", "heading", "list", "table"):
+            out = _inline_lines(block.lines, inline)
+    if out is None or out == block.lines:
+        return None
+    return _guard(block.lines, out)
+
+
+def _inline_lines(lines: list[str], inline) -> list[str]:
+    out = []
+    for line in lines:
+        new = inline(line)
+        if new.strip() or not line.strip():
+            out.append(new)
+    return out
+
+
+def _render_quote(block: Block, opts: Options, depth: int) -> list[str] | None:
+    if depth >= MAX_QUOTE_DEPTH:
+        return None
+    prefixes, inner = [], []
+    for line in block.lines:
+        stripped = line.lstrip(" ")
+        body = stripped[1:]
+        if body.startswith(" "):
+            body = body[1:]
+        prefixes.append(line[: len(line) - len(body)])
+        inner.append(body)
+    inner_out = _process("\n".join(inner), opts, depth + 1).split("\n")
+    block.meta.update(inner=inner, inner_out=inner_out, prefixes=prefixes)
+    rule = rules.block_rule("blockquote")
+    out = rule(block, opts, _inline_fn(opts)) if rule else None
+    if out is not None:
+        return out
+    if inner_out == inner:
+        return None
+    marker = prefixes[0].rstrip(" ") + " "
+    return [(marker + line) if line.strip() else marker.rstrip(" ") for line in inner_out]
+
+
+def _guard(before: list[str], after: list[str]) -> list[str]:
+    """Step 6: undo output that starts with block syntax its input did not start with."""
+    if len(before) == len(after):
+        guarded = []
+        for i, (old, new) in enumerate(zip(before, after)):
+            exposed = (syntax_categories(new, after[i - 1] if i else None)
+                       - syntax_categories(old, before[i - 1] if i else None))
+            guarded.append(old if exposed else new)
+        return guarded
+    had: set[str] = set()
+    for i, line in enumerate(before):
+        had |= syntax_categories(line, before[i - 1] if i else None)
+    for i, line in enumerate(after):
+        if syntax_categories(line, after[i - 1] if i else None) - had:
+            return before
+    return after
+
+
+def _normalize(entries: list) -> list[str]:
+    """Step 7: collapse blank runs that a removal created; leave every other run alone."""
+    out: list[str] = []
+    i = 0
+    while i < len(entries):
+        entry = entries[i]
+        if entry is _REMOVED or not entry[0].strip():
+            j, touched = i, False
+            while j < len(entries) and (entries[j] is _REMOVED or not entries[j][0].strip()):
+                touched = touched or entries[j] is _REMOVED
+                j += 1
+            run = [e[0] for e in entries[i:j] if e is not _REMOVED]
+            if touched:
+                at_edge = i == 0 or j == len(entries)
+                run = [] if at_edge else run[:1]
+            out.extend(run)
+            i = j
+            continue
+        out.append(entry[0])
+        i += 1
+    return out
