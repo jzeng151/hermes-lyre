@@ -103,3 +103,17 @@ def test_many_code_blocks_in_one_item_stay_fast():
     once = format_for_speech(text, profile="plain")
     assert time.perf_counter() - start < 2.0
     assert format_for_speech(once, profile="plain") == once
+
+
+def test_label_on_the_item_line_is_recognized():
+    text = "- Python code, 1 line:\n  ```py\n  x\n  ```\n  End of code."
+    once = format_for_speech(text, profile="plain")
+    assert once.count("Python code, 1 line:") == 1 and once.count("End of code.") == 1
+    assert format_for_speech(once, profile="plain") == once
+
+
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_removed_first_line_does_not_expose_code(profile):
+    once = format_for_speech("🎉\n    print('x')", profile=profile)
+    assert "code" not in once.lower()
+    assert format_for_speech(once, profile=profile) == once
