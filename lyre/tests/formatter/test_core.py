@@ -9,6 +9,7 @@ import pytest
 from lyre.formatter import format_for_speech
 from lyre.formatter import rules
 from lyre.formatter.core import is_latin
+from lyre.formatter.spans import TOKEN_RE
 
 FIXTURES = {
     "prose": "The tests passed. Two files changed.",
@@ -556,6 +557,31 @@ def test_backticks_across_cells_do_not_hide_table(temp_rules, prefix):
     assert once.startswith(prefix)
     assert len(seen) == 1
     assert seen[0][:2] == ["| `open | b |", "|---|---|"]
+    assert "**cell**" not in once
+    assert format_for_speech(once, profile="plain") == once
+
+
+@pytest.mark.parametrize("code", ["`x|y`", "``x`|y``", "`x\\|y`", "`**x** | y`"])
+@pytest.mark.parametrize("edges", ["|", ""])
+def test_table_code_span_pipes_are_not_cell_separators(temp_rules, code, edges):
+    _strip(temp_rules)
+    _, add_block = temp_rules
+    seen = []
+
+    def inspect_table(block, opts, inline):
+        body = block.lines[2].strip().strip("|")
+        cells = [cell.strip() for cell in body.split("|")]
+        seen.append(cells)
+        return None
+
+    add_block("table", inspect_table)
+    text = f"{edges} a \\| b | **c** {edges}\n{edges}---|---{edges}\n{edges} {code} | **cell** {edges}"
+    once = format_for_speech(text, profile="plain")
+    assert len(seen) == 1
+    cells = seen[0]
+    assert len(cells) == 2
+    assert TOKEN_RE.fullmatch(cells[0])
+    assert code in once
     assert "**cell**" not in once
     assert format_for_speech(once, profile="plain") == once
 
