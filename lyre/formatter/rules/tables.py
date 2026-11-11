@@ -8,7 +8,7 @@ oversized tables, and tables in mostly non-Latin replies, pass through byte-iden
 from __future__ import annotations
 
 from ..model import Block, Options
-from ..spans import TOKEN_RE
+from ..spans import TOKEN_RE, Stash, protect_code_spans, protect_inline
 from . import InlineFn, register_block_rule
 
 MAX_ROWS = 50
@@ -46,6 +46,18 @@ def _original(cell: str, block: Block) -> str:
     return cell
 
 
+def _unsafe_cell(cell: str, block: Block) -> bool:
+    # Recheck restored text before link targets can hide unmatched code delimiters. In prose,
+    # those delimiters could capture a protected code span in another row on the next pass.
+    stash = Stash()
+    text = protect_code_spans([_original(cell, block)], stash, lambda line: False)[0]
+    if "`" in text:
+        return True
+    # Complete tags, code, escapes and destinations are safe. An exposed '<' may instead
+    # acquire a closing '>' from a repeated column label, creating a multiline HTML span.
+    return "<" in TOKEN_RE.sub("", protect_inline(text, stash))
+
+
 def _cell_text(cell: str, block: Block, inline: InlineFn) -> str:
     span = block.meta.get("span")
 
@@ -65,8 +77,7 @@ def tables(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
     too_big = (len(rows) > MAX_ROWS or len(header) > MAX_COLUMNS
                or any(len(_original(cell, block)) > MAX_CELL for row in [header, *rows] for cell in row))
     malformed = (len(split_row(block.lines[1])) != len(header) or any(len(row) > len(header) for row in rows)
-                 # a backtick left outside protected spans is unmatched; joining cells could pair it
-                 or any("`" in TOKEN_RE.sub("", cell) for row in [header, *rows] for cell in row))
+                 or any(_unsafe_cell(cell, block) for row in [header, *rows] for cell in row))
     if not opts.latin or too_big or malformed:
         return list(block.lines)  # pass through byte-identical
     names = [_cell_text(cell, block, inline) if cell else f"Column {i + 1}" for i, cell in enumerate(header)]
