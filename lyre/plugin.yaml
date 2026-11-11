@@ -9,3 +9,15 @@ tags: [accessibility, screen-reader, gateway, messaging]
 requires_hermes: ">=0.23.0"
 provides_hooks:
   - transform_llm_output
+config_schema:
+  enabled:      {type: bool, default: false, label: "Lyre is on", description: "Master switch. /a11y on and /a11y off change this."}
+  messaging:    {type: bool, default: true,  label: "Messaging apps", description: "Telegram, WhatsApp, Signal, Discord, Slack and other chats."}
+  email:        {type: bool, default: true,  label: "Email"}
+  cli:          {type: bool, default: true,  label: "Classic terminal"}
+  tui:          {type: bool, default: true,  label: "Terminal UI"}
+  cron:         {type: bool, default: true,  label: "Scheduled tasks", description: "Results of cron jobs delivered to you."}
+  desktop:      {type: bool, default: false, label: "Desktop app", description: "Desktop already renders headings and tables."}
+  api:          {type: bool, default: false, label: "API, editors and agent-to-agent", description: "Programs may parse markdown; leave off unless you read these replies yourself."}
+  verbosity:    {type: str, choices: [brief, normal, full], default: normal, label: "Verbosity"}
+  emoji_policy: {type: str, choices: [words, remove, keep], default: words, label: "Emoji", description: "words: status emoji become words, others are removed."}
+  table_style:  {type: str, choices: [sentences, unchanged], default: sentences, label: "Tables"}
