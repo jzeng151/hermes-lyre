@@ -148,3 +148,10 @@ def test_outdented_top_level_sibling_stays_in_the_list():
     once = plain(" - first\n- second")
     assert once == "2 items.\n1, first\n2, second"
     assert plain(once) == once
+
+
+def test_unclosed_continuation_fence_keeps_the_list():
+    text = "- a\n  ```py\n  code\n- **b**\n\nAfter **bold**"
+    once = plain(text)
+    assert once == "- a\n  ```py\n  code\n- b\n\nAfter bold"
+    assert plain(once) == once
