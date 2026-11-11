@@ -25,7 +25,7 @@ def thematic_break(block: Block, opts: Options, inline: InlineFn) -> list[str] |
 
 def drawing_only(text: str, opts: Options) -> str:
     body = text.strip()
-    if body and any(_is_drawing(ch) for ch in body) and all(_is_drawing(ch) or ch in " \t" for ch in body):
+    if body and _is_drawing(body[0]) and all(_is_drawing(ch) or ch in " \t" for ch in body):
         return ""
     return text
 
