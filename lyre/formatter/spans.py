@@ -24,7 +24,8 @@ HTML_TAG_RE = re.compile(r"""</?[A-Za-z][A-Za-z0-9-]*(?:\s(?:[^<>"'\n]|"[^"\n]*"
 # The same tag with attributes on later lines; only matches that cross a line are stashed this way.
 HTML_TAG_MULTILINE_RE = re.compile(r"""<[A-Za-z][A-Za-z0-9-]*\s(?:[^<>"']|"[^"]*"|'[^']*')*/?>""")
 INLINE_MATH_RE = re.compile(r"\$\$[^$\n]+\$\$")
-URL_RE = re.compile("(?:https?|ftp)://[^\\s<>\ue000\ue001]+")
+# A raw ``|`` is not valid in a URL (it is written %7C), and it ends a table cell.
+URL_RE = re.compile("(?:https?|ftp)://[^\\s<>|\ue000\ue001]+")
 URL_TRAILING = ".,;:!?'\"*_"
 
 

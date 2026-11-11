@@ -8,8 +8,8 @@ Owner: @jzeng151
 
 | Criterion | Evidence | Link | Result |
 | --- | --- | --- | --- |
-| AC-1 9-row table keeps every cell | Unit test `test_tables.py::test_nine_rows` | | Pending |
-| AC-2 Malformed table byte-identical | Unit tests per pass-through condition | | Pending |
+| AC-1 9-row table keeps every cell | Unit test | `test_tables.py::test_ac1_nine_rows_keep_every_cell_in_order` | Pass |
+| AC-2 Malformed table byte-identical | Unit tests per pass-through condition | `test_tables.py::test_ac2_malformed_and_oversized_tables_byte_identical` | Pass |
 | AC-3 Long signed URL byte-identical | Unit test, both profiles | | Pending |
 | AC-4 Emoji-only reply | Unit test | `test_emoji.py::test_words_policy[plain-✅🎉-(done)]` | Pass |
 | AC-5 Idempotent | Property test over golden corpus and fuzz inputs | | Pending |

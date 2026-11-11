@@ -188,13 +188,17 @@ End of table.
 - Cell text gets inline rules (R1, R4, R8). Inline code and URLs in cells are protected.
 - Escaped pipes (`\|`) inside cells do not split cells and become `|` in the cell text (the R1 exception).
 - Alignment colons in the separator row are ignored.
+- A table may follow a line of prose directly, with no blank line (`Results:` over the header).
 - A table passes through **byte-identical** if any of these hold:
-  - no separator row directly under the header,
+  - no separator row directly under the header, or a separator with a different cell count,
+  - a backtick in a cell outside inline code (unmatched; joining cells could pair it),
   - a body row with more cells than the header,
   - more than 50 body rows,
   - more than 10 columns,
-  - any cell over 500 characters.
-- A body row with fewer cells than the header is padded with `blank`.
+  - any cell over 500 characters (measured as written, protected spans included),
+  - joining the cells into sentences would pair emphasis markers that sat in different cells (`*alpha | beta*`).
+- A body row with fewer cells than the header is padded with `blank`. A blank header cell is named `Column N`.
+- Tables in mostly non-Latin replies pass through byte-identical, because every sentence form inserts English words.
 - `brief`: `Table, 2 rows: Name, Price, Stock.` then `Row 1: Alpha, $10, 4.`; no `End of table.`
 - `full`: as `normal`, plus `Columns: Name, Price, Stock.` repeated before every 10th row.
 - `table_style: unchanged`: rule skipped.
