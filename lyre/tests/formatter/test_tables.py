@@ -140,3 +140,52 @@ def test_incomplete_html_header_cannot_capture_repeated_column_label(profile, ve
 def test_table_after_paragraph_line():
     assert plain("Results:\n| A | B |\n|---|---|\n|1|2|") == (
         "Results:\nTable, 1 row, 2 columns: A, B.\nRow 1: A 1, B 2.\nEnd of table.")
+
+
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+@pytest.mark.parametrize("text", [
+    "| A | ) |\n|---|---|\n| *a | [x](foo |\n| x | b* |",
+    "| )* | [x]( |\n|---|---|\n| | x |",
+    "| A | ) |\n|---|---|\n| *a | ![x](foo(bar |\n| x | b* |",
+])
+def test_incomplete_link_target_keeps_cell_boundaries(text, profile, verbosity):
+    once = format_for_speech(text, profile=profile, verbosity=verbosity)
+    assert once == text
+    assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
+
+
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+@pytest.mark.parametrize("destination", ["", " /path", " /path/**literal**"])
+def test_reference_destination_keeps_cell_boundaries(profile, verbosity, destination):
+    text = f"| A | [x]:{destination} |\n|---|---|\n| x | /destination |"
+    once = format_for_speech(text, profile=profile, verbosity=verbosity)
+    assert once == text
+    assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
+
+
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+@pytest.mark.parametrize("cell", [
+    "[x](foo(bar))",
+    "[x](<foo bar>)",
+    '[x](foo "title (ok)")',
+    "[x]()",
+    "`[x](`",
+    "$$[x]($$",
+    '<a title="[x](">',
+    "https://x.test/[x](",
+    r"[x]\(",
+    r"[x\](",
+])
+def test_complete_or_protected_link_openers_still_speak_tables(cell, profile, verbosity):
+    text = f"| A |\n|---|\n| {cell} |"
+    once = format_for_speech(text, profile=profile, verbosity=verbosity)
+    if cell == "https://x.test/[x](":
+        # Link-label URL protection exposes the trailing opener at this layer; fail open.
+        assert once == text
+    else:
+        assert once.startswith("Table, 1 row")
+    assert cell in once
+    assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
