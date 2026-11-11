@@ -120,6 +120,7 @@ def _process(text: str, opts: Options, depth: int) -> str:
     if depth == 0:
         latin, total = _reply_letter_counts(text)
         opts = replace(opts, latin=total == 0 or latin * 2 >= total)
+    opts = replace(opts, span=stash.value_of)
     entries: list = []
     prev_out, prev_changed = None, False  # last rendered line of the previous block
     for block in segment(lines):

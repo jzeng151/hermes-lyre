@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -21,7 +22,9 @@ class Options:
     """Everything a rule may base its output on.
 
     ``latin`` is False when fewer than half of the letters outside protected spans are Latin
-    script; rules must then insert no English words (spec: Script detection).
+    script; rules must then insert no English words (spec: Script detection). ``span`` reads the
+    original text of a protected token at the current container level (None outside a pass), so
+    rules such as code labels can see what a placeholder stands for without changing it.
     """
 
     profile: Profile
@@ -29,6 +32,7 @@ class Options:
     emoji_policy: EmojiPolicy = "words"
     table_style: TableStyle = "sentences"
     latin: bool = True
+    span: Callable[[str], str | None] | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass

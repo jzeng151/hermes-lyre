@@ -369,3 +369,40 @@ def test_list_item_with_indented_code_content_is_protected(temp_rules):
     add_inline("strip", lambda t, o: t.replace("**", ""))
     text = "-     **literal**\n\n      **more code**"
     assert format_for_speech(text, profile="plain") is text
+
+
+def _strip(temp_rules):
+    add_inline, _ = temp_rules
+    add_inline("strip", lambda t, o: t.replace("**", ""))
+
+
+@pytest.mark.parametrize("text,expected", [
+    # fence opened on a list item line
+    ('- ```python\n  x = "**literal**"\n  ```\n\n**prose**', '- ```python\n  x = "**literal**"\n  ```\n\nprose'),
+    # an unclosed item fence ends with its item
+    ("- ```py\n  code **a**\n- **next**\n\nAfter **bold**", "- ```py\n  code **a**\n- next\n\nAfter bold"),
+    # 5+ spaces after the marker: indented code, not an item fence, continuation included
+    ("-     ```py\n- **next**", "-     ```py\n- next"),
+    ("-     **first**\n      **second**", "-     **first**\n      **second**"),
+    # an HTML tag with attributes on the next line
+    ('<span\n title="**literal**">**prose**</span>', '<span\n title="**literal**">prose</span>'),
+])
+def test_review_round_four_protection(temp_rules, text, expected):
+    _strip(temp_rules)
+    assert format_for_speech(text, profile="plain") == expected
+
+
+def test_table_interrupts_paragraph(temp_rules):
+    _, add_block = temp_rules
+    seen = []
+    add_block("table", lambda b, o, inline: (seen.append(b.lines), None)[1])
+    format_for_speech("Here are the results:\n| Name | Stock |\n|---|---|\n| Alpha | 4 |", profile="plain")
+    assert seen == [["| Name | Stock |", "|---|---|", "| Alpha | 4 |"]]
+
+
+def test_block_rules_can_read_protected_spans(temp_rules):
+    _, add_block = temp_rules
+    seen = []
+    add_block("code", lambda b, o, inline: (seen.append(o.span(b.lines[0].strip())), None)[1])
+    format_for_speech("```py\nx = 1\n```\n\n```json\n{}\n[]\n```\n\n```py\nopen", profile="plain")
+    assert seen == ["```py\nx = 1\n```", "```json\n{}\n[]\n```", "```py\nopen"]
