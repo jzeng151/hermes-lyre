@@ -15,7 +15,17 @@ ATX_RE = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]|$)")
 SETEXT_RE = re.compile(r"^ {0,3}(?:=+|-+)[ \t]*$")
 QUOTE_RE = re.compile(r"^ {0,3}>")
 FENCE_RE = re.compile(r"^[ \t]*(?:`{3,}|~{3,})")
-TABLE_SEP_RE = re.compile(r"^[ \t]*\|?[ \t]*:?-+:?[ \t]*(?:\|[ \t]*:?-+:?[ \t]*)*\|?[ \t]*$")
+_SEP_CELL_RE = re.compile(r":?-+:?")
+
+
+def is_table_separator(line: str) -> bool:
+    """``|---|:--:|`` and ``---|---``: needs a pipe; checked cell by cell in linear time."""
+    body = line.strip()
+    if "|" not in body:
+        return False
+    body = body[1:] if body.startswith("|") else body
+    body = body[:-1] if body.endswith("|") else body
+    return all(_SEP_CELL_RE.fullmatch(cell.strip()) for cell in body.split("|"))
 
 
 def is_thematic_break(line: str) -> bool:
@@ -26,8 +36,7 @@ def is_thematic_break(line: str) -> bool:
 
 
 def _is_table_start(lines: list[str], i: int) -> bool:
-    return ("|" in lines[i] and i + 1 < len(lines) and "|" in lines[i + 1]
-            and bool(TABLE_SEP_RE.match(lines[i + 1])))
+    return "|" in lines[i] and i + 1 < len(lines) and is_table_separator(lines[i + 1])
 
 
 def _starts_block(line: str) -> bool:
@@ -45,7 +54,7 @@ def syntax_categories(line: str, prev: str | None) -> set[str]:
         found.add("atx")
     if QUOTE_RE.match(line):
         found.add("quote")
-    if line.lstrip().startswith("|"):
+    if line.lstrip().startswith("|") or (prev is not None and "|" in prev and is_table_separator(line)):
         found.add("table")
     if is_thematic_break(line):
         found.add("rule")
