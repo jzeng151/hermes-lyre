@@ -91,3 +91,18 @@ def test_review_round_links(text, expected, profile):
     once = format_for_speech(text, profile=profile)
     assert once == expected
     assert format_for_speech(once, profile=profile) == once
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("[docs](https://x.test)suffix", "docs, link: https://x.test suffix"),
+    ("[a](https://x.test)[b](https://y.test)", "a, link: https://x.test b, link: https://y.test"),
+    ("[docs](https://x.test).", "docs, link: https://x.test."),
+    ("[back]()\n\n**bold**", "[back]()\n\nbold"),
+    ("[![](https://x.test/i.png)]()", "[![](https://x.test/i.png)]()"),
+    ("[_docs_](https://x.test)", "docs, link: https://x.test"),
+    ("[__docs__](https://x.test)", "docs, link: https://x.test"),
+])
+def test_review_round_two_links(text, expected):
+    once = format_for_speech(text, profile="plain")
+    assert once == expected
+    assert format_for_speech(once, profile="plain") == once

@@ -64,7 +64,10 @@ def tables(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
     rows = [split_row(line) for line in block.lines[2:]]
     too_big = (len(rows) > MAX_ROWS or len(header) > MAX_COLUMNS
                or any(len(_original(cell, block)) > MAX_CELL for row in [header, *rows] for cell in row))
-    if not opts.latin or too_big or any(len(row) > len(header) for row in rows):
+    malformed = (len(split_row(block.lines[1])) != len(header) or any(len(row) > len(header) for row in rows)
+                 # a backtick left outside protected spans is unmatched; joining cells could pair it
+                 or any("`" in TOKEN_RE.sub("", cell) for row in [header, *rows] for cell in row))
+    if not opts.latin or too_big or malformed:
         return list(block.lines)  # pass through byte-identical
     names = [_cell_text(cell, block, inline) if cell else f"Column {i + 1}" for i, cell in enumerate(header)]
     columns = ", ".join(names)

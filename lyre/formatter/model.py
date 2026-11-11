@@ -23,7 +23,8 @@ class Options:
 
     ``latin`` is False when fewer than half of the letters outside protected spans are Latin
     script; rules must then insert no English words (spec: Script detection). ``span`` reads the
-    original text of a protected token at the current container level (None outside a pass).
+    original text of a protected token at the current container level (None outside a pass), so
+    rules such as code labels can see what a placeholder stands for without changing it.
     """
 
     profile: Profile

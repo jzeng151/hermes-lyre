@@ -70,7 +70,7 @@ Each rule lists the output at `normal` verbosity, then the differences at `brief
 
 - Backslash escapes stay as written. Turning `\*literal\*` into `*literal*` would let a second pass strip those asterisks, breaking AC-5. The one exception is `\|` inside a table that R6 converts, because the converted output is never a table again.
 - Markers are removed only when they pair on the same line. An unpaired `*` or `_` is left as is (for example `2 * 3`, `snake_case`).
-- Underscore markers pair only when the closing marker is followed by whitespace, line end or `, ; : ! ? )`, so `__init__.py` keeps its underscores (ADR 0003).
+- Underscore markers pair only when the closing marker is followed by whitespace, line end or `, ; : ! ? ) ]`, so `__init__.py` keeps its underscores (ADR 0003).
 - Single asterisks may pair inside a word (`un*believ*able`, CJK text) but never next to a digit, so `2*3*4` keeps its operators.
 - `brief`: strikethrough becomes `(removed: gone)` as well; no difference.
 - `full`: no difference.
@@ -153,6 +153,9 @@ Output (`normal`):
 - Task lists: `- [x] Done` -> `1, (done) Done`; `- [ ] Open` -> `1, (not done) Open`. A task box needs a space or the item end after `]`, so a link labelled `x` is not a task.
 - A change of marker type at the same level (`-` to `1.`, `-` to `*`) starts a separate list with its own count.
 - Prose after a nested list belongs to the item whose content column it reaches.
+- A marker nests only when it reaches the content column of the item above; a smaller extra indent makes a sibling.
+- A list whose item holds a fence with no closing line inside the item is left to the default inline handling.
+- A continuation line whose rewrite would start with block syntax it did not start with (a list marker revealed by removing an emoji) is kept as written.
 - An item emptied by the inline rules (only decoration) keeps its number and nothing else.
 - A list whose item continuation lines hold a heading, quote, thematic break or table is left to the default inline handling, because speaking it would change what the next pass sees.
 - A list item's inline code is kept.
@@ -185,8 +188,10 @@ End of table.
 - Cell text gets inline rules (R1, R4, R8). Inline code and URLs in cells are protected.
 - Escaped pipes (`\|`) inside cells do not split cells and become `|` in the cell text (the R1 exception).
 - Alignment colons in the separator row are ignored.
+- A table may follow a line of prose directly, with no blank line (`Results:` over the header).
 - A table passes through **byte-identical** if any of these hold:
-  - no separator row directly under the header,
+  - no separator row directly under the header, or a separator with a different cell count,
+  - a backtick in a cell outside inline code (unmatched; joining cells could pair it),
   - a body row with more cells than the header,
   - more than 50 body rows,
   - more than 10 columns,
@@ -246,6 +251,7 @@ End of code.
 
 - URLs are never shortened, decoded or re-encoded.
 - A link is rewritten only when the next pass protects its destination whole as a bare URL. Relative paths, fragments, other schemes and URLs ending in punctuation keep the link as written, so no pass can change the destination.
+- Text glued to a link (`[docs](u)suffix`, `[a](u)[b](v)`) gets a space after the emitted URL, so it never joins the address. Empty destinations (`[back]()`) keep the link as written.
 - A label that is a protected span (inline code, even across lines) stays a token in the output; only the label-equals-URL comparison reads its text.
 - Inline code keeps its backticks on both profiles. The backticks are the protection boundary: without them, a second pass would treat `**literal**` or a status emoji inside the code as prose and change it, breaking AC-5 and AC-6. Whether screen readers announce the backticks is Q5.
 - Inline code containing a backtick (double-backtick spans) keeps its delimiters and inner text exactly.
@@ -259,8 +265,9 @@ End of code.
 - `> text` -> `text` (the marker is removed; nested `> >` too). The contents are processed as a container (processing step 3) on both profiles; on the `markdown` profile the markers are then put back on every output line of the quote, so only the quote's contents change.
 - `full`: a `Quote:` line before the quote's contents and an `End of quote.` line after them (plain profile only). The announcement is on its own line, never prefixed to the first line, so labels inside the quote (such as an R7 code label) stay recognizable on the next pass.
 - Removing the markers is plain only; container processing of the contents runs on both profiles.
-- The markers stay (the contents are still processed) when the quote's processed contents hold an unclosed fence, an unclosed `$$` or a list marker, because removing them would change how the rest of the reply parses.
-- When text sits directly above the quote, the unwrapped contents start after a blank line, so they stay a separate block on the next pass (a quoted indented code block stays code). The quote's contents keep their own spacing; only the outer pass trims nothing inside them.
+- The markers stay (the contents are still processed) when the quote's processed contents hold an unclosed fence, an unclosed `$$`, a list marker or indented code, because removing them would change how the rest of the reply parses (a list anywhere above would take indented code over as item text).
+- An empty quote becomes a blank line, so the blocks around it stay apart.
+- When text sits directly above the quote, the unwrapped contents start after a blank line, so they stay a separate block on the next pass and quoted prose is not merged into the paragraph above. The quote's contents keep their own spacing; only the outer pass trims nothing inside them.
 
 ## Acceptance Criteria
 
