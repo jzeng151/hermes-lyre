@@ -106,3 +106,7 @@ def test_review_round_two_links(text, expected):
     once = format_for_speech(text, profile="plain")
     assert once == expected
     assert format_for_speech(once, profile="plain") == once
+
+
+def test_destination_holding_a_protected_span_stays():
+    assert format_for_speech("[docs](<guide>)\n\n**bold**", profile="plain") == "[docs](<guide>)\n\nbold"

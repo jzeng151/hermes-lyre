@@ -131,3 +131,9 @@ def test_review_round_four_lists(text, expected):
     once = plain(text)
     assert once == expected
     assert plain(once) == once
+
+
+def test_tab_after_marker_counts_as_columns():
+    once = plain("-\tfirst\n  - second\n- third")
+    assert once == "3 items.\n1, first\n2, second\n3, third"
+    assert plain(once) == once
