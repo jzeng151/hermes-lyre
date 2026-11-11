@@ -31,6 +31,9 @@ class Ctx:
     def register_command(self, *args, **kwargs) -> None:
         pass
 
+    def register_skill(self, *args, **kwargs) -> None:
+        pass
+
 
 def callback(**settings):
     ctx = Ctx(**settings)
