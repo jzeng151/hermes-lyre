@@ -96,7 +96,11 @@ def _protect(text: str, stash: Stash) -> list[str]:
     skip = lambda line: bool(is_block_token_line(line) or QUOTE_RE.match(line))  # noqa: E731
     out = []
     for block in segment(lines):
-        if block.kind == "table":
+        if block.kind == "blockquote" and any(not QUOTE_RE.match(line) for line in block.lines):
+            # Lazy continuations lack marker prefixes. Keep this unsupported container whole,
+            # rather than exposing a cross-line code span or inventing quote markers.
+            out.append(stash.put("t", "\n".join(block.lines)))
+        elif block.kind == "table":
             out.extend(protect_cells(line, stash) for line in block.lines)
         else:
             protected = protect_code_spans(block.lines, stash, skip, starts_block, lambda line: bool(ATX_RE.match(line)))
