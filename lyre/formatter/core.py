@@ -13,8 +13,8 @@ from . import rules
 from .blocks import ATX_RE, QUOTE_RE, segment, starts_block, syntax_categories
 from .model import (EMOJI_POLICIES, PROFILES, TABLE_STYLES, VERBOSITIES, Block, EmojiPolicy, Options, Profile,
                     TableStyle, Verbosity)
-from .spans import (CLOSE, OPEN, TOKEN_RE, Stash, indent_width, is_block_token_line, protect_blocks, protect_code_spans,
-                    protect_inline)
+from .spans import (CLOSE, OPEN, TOKEN_RE, Stash, indent_width, is_block_token_line, protect_blocks, protect_cells,
+                    protect_code_spans, protect_inline)
 
 MAX_BYTES = 200_000
 MAX_QUOTE_DEPTH = 10
@@ -95,9 +95,19 @@ def is_latin(lines: list[str]) -> bool:
 def _protect(text: str, stash: Stash) -> list[str]:
     """Step 2 for one container level. Quote lines are protected by their own container pass."""
     lines = protect_blocks(text.split("\n"), stash)
+    # Lists do not recursively render their nested quotes. Preserve those lines rather than
+    # exposing their code (and any unsupported nested structure) to the list's inline rules.
+    lines = [stash.put("t", line) if block.kind == "list" and QUOTE_RE.match(line) else line
+             for block in segment(lines) for line in block.lines]
     skip = lambda line: bool(is_block_token_line(line) or QUOTE_RE.match(line))  # noqa: E731
-    lines = protect_code_spans(lines, stash, skip, starts_block, lambda line: bool(ATX_RE.match(line)))
-    return [line if skip(line) else protect_inline(line, stash) for line in lines]
+    out = []
+    for block in segment(lines):
+        if block.kind == "table":
+            out.extend(protect_cells(line, stash) for line in block.lines)
+        else:
+            protected = protect_code_spans(block.lines, stash, skip, starts_block, lambda line: bool(ATX_RE.match(line)))
+            out.extend(line if skip(line) else protect_inline(line, stash) for line in protected)
+    return out
 
 
 def _reply_letter_counts(text: str, depth: int = 0) -> tuple[int, int]:
@@ -177,7 +187,7 @@ def _process(text: str, opts: Options, depth: int) -> str:
 
 def _before_indented_code(block: Block) -> bool:
     following = block.meta.get("next_text")
-    return following is not None and is_block_token_line(following) and following.strip()[1] == "c"
+    return following is not None and is_block_token_line(following) and following.strip()[1] in ("c", "f")
 
 
 def _nearest_text(blocks: list[Block]) -> None:

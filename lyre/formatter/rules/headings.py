@@ -46,6 +46,9 @@ def headings(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
         text += "."
     if opts.verbosity == "full" and opts.latin:
         text = ("Heading: " if block.meta.get("level", 1) <= 2 else "Subheading: ") + text
+    if text.startswith("$$"):
+        # A newly exposed opener would consume the next display-math block on a later pass.
+        return block.lines
     prev = block.meta.get("prev")
     return ["", text] if prev is not None and prev.strip() else [text]
 

@@ -171,3 +171,35 @@ def test_review_round_six_lists(text, expected):
     once = plain(text)
     assert once == expected
     assert plain(once) == once
+
+
+@pytest.mark.parametrize("text", [
+    "10. ```py\n    code\n    ```\n11. next",
+    "- parent\n  - ```py\n    code\n    ```\n- next",
+])
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_item_fence_with_invalid_standalone_closer_keeps_markers(text, verbosity, profile):
+    once = format_for_speech(text, profile=profile, verbosity=verbosity)
+    assert text.split("\n")[0] in once
+    assert "    code\n    ```" in once
+    assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
+
+
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_list_boundary_blank_preserves_following_indented_code(verbosity, profile):
+    text = "100. a\n     - b\n\n  para\n\n    **code**"
+    once = format_for_speech(text, profile=profile, verbosity=verbosity)
+    assert "\n\n    **code**" in once
+    assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
+
+
+@pytest.mark.parametrize("literal", ["**literal**", "~~literal~~"])
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_unmatched_backtick_keeps_list_inline_boundaries(literal, verbosity, profile):
+    text = f"- unmatched `\n- `{literal}`"
+    once = format_for_speech(text, profile=profile, verbosity=verbosity)
+    assert f"`{literal}`" in once
+    assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
