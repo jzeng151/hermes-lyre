@@ -134,3 +134,21 @@ def test_emoji_letter_does_not_count_as_script():
     once = format_for_speech("ℹ️ ✅", profile="plain")
     assert once == "(done)"
     assert format_for_speech(once, profile="plain") == once
+
+
+@pytest.mark.parametrize("text,plain_out,markdown_out", [
+    ("(**✅ Done**)", "((done) Done)", "(**(done) Done**)"),
+    ("**Done 🎉**.", "Done.", "**Done**."),
+])
+def test_emphasis_delimiters_beside_punctuation(text, plain_out, markdown_out):
+    assert format_for_speech(text, profile="plain") == plain_out
+    assert format_for_speech(text, profile="markdown") == markdown_out
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("Cross 🕆 symbol", "Cross 🕆 symbol"),       # not an emoji at all
+    ("Use 🖥 and 🛠 here", "Use 🖥 and 🛠 here"),   # text by default, no selector
+    ("Use 🖥️ and 🛠️ here", "Use and here"),        # emoji with the selector
+])
+def test_supplementary_text_symbols(text, expected):
+    assert format_for_speech(text, profile="plain") == expected
