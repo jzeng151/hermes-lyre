@@ -239,7 +239,7 @@ End of code.
 ### R9. Blockquotes
 
 - `> text` -> `text` (the marker is removed; nested `> >` too). The contents are processed as a container (processing step 3) on both profiles; on the `markdown` profile the markers are then put back on every output line of the quote, so only the quote's contents change.
-- `full`: the first line of each quote is prefixed `Quote: ` (plain profile only).
+- `full`: a `Quote:` line before the quote's contents and an `End of quote.` line after them (plain profile only). The announcement is on its own line, never prefixed to the first line, so labels inside the quote (such as an R7 code label) stay recognizable on the next pass.
 - Removing the markers is plain only; container processing of the contents runs on both profiles.
 
 ## Acceptance Criteria
@@ -266,7 +266,7 @@ End of code.
 - [ ] **AC-20** Given unfenced tree output with box-drawing characters, when formatted twice, then those lines are unchanged.
 - [ ] **AC-21** Given a top-level indented code block and a list item containing indented code (`- Example:`, a blank line, then six-space-indented Python with `**` and an emoji in a string), when formatted twice, then each block's lines are byte-identical, each has exactly one label pair, and the output equals the first pass.
 - [ ] **AC-22** Given lines starting with `[- Build](https://x.test)`, `🎉 1. Done`, `**# Title**` and `> # Quoted title`, when formatted twice, then the first three lines are unchanged, the quote becomes a heading inside the quote, no list, heading or quote structure appears that the input did not have, and the second pass equals the first.
-- [ ] **AC-23** Given a blockquote holding an indented code block (`>`, then `>     print("✅ **done**")`) and a fenced block (`> ```py` ... `> ````), when formatted twice on either profile, then the code lines after the quote markers are byte-identical, each block has one label pair, and the second pass equals the first.
+- [ ] **AC-23** Given a blockquote holding an indented code block (`>`, then `>     print("✅ **done**")`) and a fenced block (`> ```py` ... `> ````), when formatted twice on either profile, then the code lines after the quote markers are byte-identical, each block has one label pair, and the second pass equals the first. The same holds at `full` verbosity on the `plain` profile when the quote starts with a fenced block.
 
 ## Edge Cases
 
