@@ -14,6 +14,7 @@ from .spans import FENCE_OPEN_RE, LIST_ITEM_RE, block_token_kind, indent_width, 
 ATX_RE = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]|$)")
 SETEXT_RE = re.compile(r"^ {0,3}(?:=+|-+)[ \t]*$")
 QUOTE_RE = re.compile(r"^ {0,3}>")
+_QUOTE_PREFIX_RE = re.compile(r" {0,3}> ?")
 FENCE_RE = re.compile(r"^[ \t]*(?:`{3,}|~{3,})")
 _SEP_CELL_RE = re.compile(r":?-+:?")
 
@@ -93,7 +94,7 @@ def _list_end(lines: list[str], i: int) -> int:
             k = j
             while k < len(lines) and not lines[k].strip():
                 k += 1
-            if k < len(lines) and (LIST_ITEM_RE.match(lines[k]) or indent_width(lines[k]) >= 2):
+            if k < len(lines) and (LIST_ITEM_RE.match(lines[k]) or indent_width(lines[k]) >= column):
                 j = k
                 continue
             break
@@ -113,9 +114,11 @@ def _quote_end(lines: list[str], i: int) -> int:
         line = lines[j]
         quote = QUOTE_RE.match(line)
         if quote:
-            body = line[quote.end():].removeprefix(" ")
-            while nested := QUOTE_RE.match(body):
-                body = body[nested.end():].removeprefix(" ")
+            # Match against the original line; slicing every nested suffix is quadratic.
+            offset = 0
+            while nested := _QUOTE_PREFIX_RE.match(line, offset):
+                offset = nested.end()
+            body = line[offset:]
             if fence is not None:
                 stripped = body.strip()
                 if len(stripped) >= len(fence) and stripped == fence[0] * len(stripped):
