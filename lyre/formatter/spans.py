@@ -323,7 +323,10 @@ def _target_end(line: str, k: int) -> int | None:
         if ch == "\\":
             k += 2
             continue
-        depth += {"(": 1, ")": -1}.get(ch, 0)
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
         k += 1
     return None if depth else k
 
