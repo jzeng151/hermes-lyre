@@ -1,16 +1,23 @@
-# Lyre
+# hermes-lyre
 
-Lyre is a Hermes plugin that makes Hermes replies easy to follow with a screen reader.
+This repository holds Lyre, a Hermes plugin that makes Hermes replies easy to follow with a screen reader.
 
-It is in early development and does not change any replies yet.
+The plugin and its documentation are in the [lyre](lyre/README.md) folder.
 
 ## Development
 
-Run the tests:
+The plugin uses only the Python standard library. Tests need pytest and PyYAML.
 
-    uv run pytest
+Run the tests from the plugin folder:
+
+    cd lyre
+    uv run --no-project --with pytest --with pyyaml pytest
 
 Check the plugin the way the Hermes catalog does:
 
     hermes plugins validate lyre
     hermes plugins doctor lyre --ci
+
+## Layout
+
+Each plugin is a top-level folder with its own plugin.yaml, README, LICENSE and tests, the same layout as the official Hermes plugin repositories. The catalog entry points at it with `subdir: lyre`.

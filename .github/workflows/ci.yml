@@ -1,51 +1,119 @@
 name: CI
 
+# Same shape as the official Hermes plugin repositories: every top-level folder with a
+# plugin.yaml is validated against Hermes core and has its tests run on Linux, macOS and
+# Windows. Hermes is tested at the lowest supported release (requires_hermes) and at main;
+# the nightly run catches a core change that breaks the plugin before a user does.
+
 on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "23 7 * * *"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
-env:
-  # Hermes v0.23.0 release commit. Bump together with requires_hermes in lyre/plugin.yaml.
-  HERMES_COMMIT: 2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19
-
 jobs:
-  tests:
+  discover:
     runs-on: ubuntu-latest
+    outputs:
+      plugins: ${{ steps.list.outputs.plugins }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list
+        run: |
+          plugins=$(for d in */; do d=${d%/}; [ -f "$d/plugin.yaml" ] && echo "$d"; done | jq -R . | jq -sc .)
+          echo "plugins=$plugins" >> "$GITHUB_OUTPUT"
+          echo "Plugins: $plugins"
+
+  # Fast, Hermes-free run of the plugin's own tests on every supported Python.
+  tests:
+    needs: discover
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.11", "3.12", "3.13", "3.14"]
+        plugin: ${{ fromJson(needs.discover.outputs.plugins) }}
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ["3.11", "3.14"]
+        include:
+          - { os: ubuntu-latest, python: "3.12" }
+          - { os: ubuntu-latest, python: "3.13" }
+    runs-on: ${{ matrix.os }}
+    name: tests · ${{ matrix.plugin }} · ${{ matrix.os }} · py${{ matrix.python }}
+    defaults:
+      run:
+        working-directory: ${{ matrix.plugin }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python }}
-      - run: uv run pytest
+      - run: uv run --no-project --with pytest --with pyyaml pytest
 
-  hermes-validate:
-    runs-on: ubuntu-latest
+  # The checks the catalog runs at admission, against a Hermes checkout.
+  hermes:
+    needs: discover
+    strategy:
+      fail-fast: false
+      matrix:
+        plugin: ${{ fromJson(needs.discover.outputs.plugins) }}
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        hermes:
+          # v0.23.0 release commit. Bump together with requires_hermes in plugin.yaml.
+          - { label: v0.23.0, ref: 2bd378ed1b8d6bf2192cb26e0a55ff3091e6bd19 }
+          - { label: main, ref: main }
+    runs-on: ${{ matrix.os }}
+    name: hermes ${{ matrix.hermes.label }} · ${{ matrix.plugin }} · ${{ matrix.os }}
+    # A break on Hermes main is reported but does not block a pull request; the nightly run surfaces it.
+    continue-on-error: ${{ matrix.hermes.label == 'main' && github.event_name == 'pull_request' }}
     timeout-minutes: 30
+    env:
+      HERMES_HOME: ${{ github.workspace }}/.hermes-home
     steps:
+      - name: Allow long paths (the Hermes docs tree exceeds MAX_PATH)
+        if: runner.os == 'Windows'
+        run: git config --system core.longpaths true
+
       - uses: actions/checkout@v4
         with:
+          path: plugins
           persist-credentials: false
 
-      - name: Install Hermes v0.23.0
+      - uses: actions/checkout@v4
+        with:
+          repository: NousResearch/hermes-agent
+          ref: ${{ matrix.hermes.ref }}
+          path: hermes-agent
+          persist-credentials: false
+
+      # Hermes core gates its runtime dependencies on python_version >= '3.14'.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install Hermes and the test tools
+        shell: bash
+        # Through uv with core's override-dependencies, the way Hermes installs itself.
         run: |
           set -euo pipefail
-          curl -fsSL https://hermes-agent.nousresearch.com/install.sh \
-            | bash -s -- --commit "$HERMES_COMMIT" --non-interactive --skip-browser --skip-computer-use
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
-      - name: Hermes version
-        run: hermes --version
+          python -m pip install uv
+          python -c 'import sys,tomllib; print("\n".join(tomllib.load(open(sys.argv[1], "rb")).get("tool", {}).get("uv", {}).get("override-dependencies", [])))' hermes-agent/pyproject.toml > "$RUNNER_TEMP/core-overrides.txt"
+          pyexe=$(python -c 'import sys; print(sys.executable)')
+          python -m uv pip install --python "$pyexe" --override "$RUNNER_TEMP/core-overrides.txt" -e ./hermes-agent pytest
+          mkdir -p "$HERMES_HOME"
 
       - name: hermes plugins validate
-        run: hermes plugins validate lyre --install-deps
+        shell: bash
+        run: python -m hermes_cli.main plugins validate "plugins/${{ matrix.plugin }}" --install-deps
 
       - name: hermes plugins doctor
-        run: hermes plugins doctor lyre --ci
+        shell: bash
+        run: python -m hermes_cli.main plugins doctor "plugins/${{ matrix.plugin }}" --ci
+
+      - name: Plugin tests with Hermes installed
+        shell: bash
+        working-directory: plugins/${{ matrix.plugin }}
+        run: python -m pytest
