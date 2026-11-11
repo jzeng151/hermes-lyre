@@ -1,0 +1,15 @@
+To set it up:
+
+3 items.
+1, Install the CLI:
+
+Bash code, 1 line:
+   ```bash
+   pip install acme-cli
+   ```
+End of code.
+
+2, Log in with `acme login`.
+3, Run `acme init` in your project folder.
+
+That's it
