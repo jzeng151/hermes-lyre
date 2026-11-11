@@ -14,13 +14,15 @@ from itertools import groupby
 from typing import cast
 
 from . import rules
-from .blocks import ATX_RE, QUOTE_RE, segment, starts_block, syntax_categories
+from .blocks import ATX_RE, QUOTE_RE, same_block_shape, segment, starts_block, syntax_categories
 from .model import (EMOJI_POLICIES, PROFILES, TABLE_STYLES, VERBOSITIES, Block, EmojiPolicy, Options, Profile,
                     TableStyle, Verbosity)
 from .spans import (CLOSE, OPEN, TOKEN_RE, Stash, indent_width, is_block_token_line, protect_blocks, protect_cells,
                     protect_code_spans, protect_inline)
 
 _ASCII_LETTER_PROBE = re.compile("[A-Za-z]")
+# Quotes in lists still need opaque-container protection even without inline markers.
+_INLINE_PROTECTION_PROBE = re.compile(r"`|<|\\|\[|\]\(|\$\$|://|^ {0,3}>", re.MULTILINE)
 
 MAX_BYTES = 200_000
 MAX_QUOTE_DEPTH = 10
@@ -108,14 +110,27 @@ def is_latin(lines: list[str]) -> bool:
     return total == 0 or latin * 2 >= total
 
 
-def _protect(text: str, stash: Stash) -> list[str]:
-    """Step 2 for one container level. Quote lines are protected by their own container pass."""
+def _protect(text: str, stash: Stash, segmented: list[Block] | None = None) -> list[str]:
+    """Protect one container; populate *segmented* only if its original block shapes survive.
+
+    Multiline spans and opaque quote containers can remove boundaries or indentation. In
+    those cases the caller must segment the protected lines again rather than reuse blocks.
+    """
     lines = protect_blocks(text.split("\n"), stash)
     # Lists do not recursively render their nested quotes. Preserve those lines rather than
     # exposing their code (and any unsupported nested structure) to the list's inline rules.
     skip = lambda line: bool(is_block_token_line(line) or QUOTE_RE.match(line))  # noqa: E731
     out = []
-    for block in segment(lines):
+    blocks = segment(lines)
+    reusable = True
+    for block in blocks:
+        if block.kind in ("blank", "code", "math", "rule"):
+            out.extend(block.lines)
+            continue
+        if block.kind != "blockquote" and not _INLINE_PROTECTION_PROBE.search("\n".join(block.lines)):
+            out.extend(block.lines)
+            continue
+        original = block.lines
         if block.kind == "list":
             preserved = []
             for quoted, run in groupby(block.lines, key=lambda line: bool(QUOTE_RE.match(line))):
@@ -126,12 +141,19 @@ def _protect(text: str, stash: Stash) -> list[str]:
         if block.kind == "blockquote" and any(not QUOTE_RE.match(line) for line in block.lines):
             # Lazy continuations lack marker prefixes. Keep this unsupported container whole,
             # rather than exposing a cross-line code span or inventing quote markers.
-            out.append(stash.put("q", "\n".join(block.lines)))
+            protected = [stash.put("q", "\n".join(block.lines))]
         elif block.kind == "table":
-            out.extend(protect_cells(line, stash) for line in block.lines)
+            protected = [protect_cells(line, stash) for line in block.lines]
         else:
             protected = protect_code_spans(block.lines, stash, skip, starts_block, lambda line: bool(ATX_RE.match(line)))
-            out.extend(line if skip(line) else protect_inline(line, stash) for line in protected)
+            protected = [line if skip(line) else protect_inline(line, stash) for line in protected]
+        if segmented is not None and reusable and original != protected:
+            reusable = len(original) == len(protected) and all(
+                same_block_shape(before, after) for before, after in zip(original, protected))
+        block.lines = protected
+        out.extend(protected)
+    if segmented is not None and reusable:
+        segmented.extend(blocks)
     return out
 
 
@@ -191,13 +213,15 @@ def _strip_quote_marker(line: str) -> tuple[str, str]:
 
 def _process(text: str, opts: Options, depth: int) -> str:
     stash = Stash()
-    lines = _protect(text, stash)
+    blocks: list[Block] = []
+    lines = _protect(text, stash, blocks)
     if depth == 0:
         latin, total = _protected_letter_counts(lines, stash=stash)
         opts = replace(opts, latin=total == 0 or latin * 2 >= total)
     opts = replace(opts, span=stash.value_of, protect_url=lambda url: stash.put("u", url))
     entries: list = []
-    blocks = segment(lines)
+    if not blocks:
+        blocks = segment(lines)
     for i, block in enumerate(blocks):
         block.meta["prev"] = blocks[i - 1].lines[-1] if i else None
         block.meta["next"] = blocks[i + 1].lines[0] if i + 1 < len(blocks) else None
@@ -309,8 +333,10 @@ def _render(block: Block, opts: Options, depth: int) -> list[str] | None:
                 raise
             return None
         return None if out is None or out == block.lines else out
-    inline = _inline_fn(opts)
     rule = rules.block_rule(block.kind)
+    if rule is None and block.kind not in ("paragraph", "heading", "list", "table"):
+        return None
+    inline = _inline_fn(opts)
     out = rule(block, opts, inline) if rule else None
     per_line = out is None
     if per_line and block.kind in ("paragraph", "heading", "list", "table"):
