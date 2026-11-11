@@ -135,3 +135,8 @@ def test_indented_line_after_a_break_is_code():
 def test_ordered_child_after_item_code_is_spoken(profile):
     out = twice("- ```py\n  x\n  ```\n  2. child", profile=profile)
     assert "Python code" in out and "child" in out
+
+
+def test_over_indented_break_shape_is_paragraph_text():
+    out = twice("paragraph\n    ---\n    **continuation prose**", profile="plain")
+    assert "Code" not in out and "**continuation prose**" not in out

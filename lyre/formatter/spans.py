@@ -267,7 +267,10 @@ def protect_blocks(lines: list[str], stash: Stash) -> list[str]:
             _open_level(columns, line, list_col)
         out.append(line)
         # A thematic break is a block boundary like a blank line: indented code may follow it.
-        prev_blank = not line.strip() or bool(_BREAK_RE.match(line))
+        # It needs at most three spaces of indentation in its container (four is paragraph text
+        # or code), measured from the item's content column inside a list.
+        base = list_col if list_col is not None and indent_width(line) >= list_col else 0
+        prev_blank = not line.strip() or bool(_BREAK_RE.match(line) and indent_width(line) - base <= 3)
         i += 1
     return out
 
