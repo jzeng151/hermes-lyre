@@ -28,15 +28,16 @@ _EMPHASIS = [
 _STRIKE = re.compile(r"~~(?=\S)([^~\n]+?)(?<=\S)~~")
 
 
-def asterisk_delimiter_edges(text: str, start: int, end: int) -> tuple[bool, bool]:
-    """Whether a range touches a paired asterisk opener on its left or closer on its right."""
-    opening = closing = False
-    for pattern in _EMPHASIS:
+def paired_delimiter_edges(text: str) -> tuple[set[int], set[int]]:
+    """Collect paired opener/closer content offsets once, before emoji edits shift them."""
+    openings: set[int] = set()
+    closings: set[int] = set()
+    for pattern in [*_EMPHASIS, _STRIKE]:
         for match in pattern.finditer(text):
-            if match.group(0).startswith("*"):
-                opening |= match.start(1) == start
-                closing |= match.end(1) == end
-    return opening, closing
+            if match.group(0).startswith(("*", "~~")):
+                openings.add(match.start(1))
+                closings.add(match.end(1))
+    return openings, closings
 
 
 def emphasis(text: str, opts: Options) -> str:
