@@ -18,7 +18,7 @@ _END_PUNCT = (".", "!", "?", ":")
 
 def heading_text(block: Block) -> str:
     if block.meta.get("setext"):
-        return block.lines[0].strip()
+        return " ".join(line.strip() for line in block.lines[:-1])  # every line above the underline
     m = _ATX_TEXT.match(block.lines[0])
     return m.group(1).strip() if m else block.lines[0].strip()
 

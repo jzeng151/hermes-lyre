@@ -21,6 +21,10 @@ MAX_QUOTE_DEPTH = 10
 _REMOVED = object()  # marks where a block was removed, for blank-line normalization
 
 
+class _TooDeep(Exception):
+    """A quote nested past MAX_QUOTE_DEPTH; the outermost quote holding it stays unchanged."""
+
+
 def format_for_speech(
     text: str,
     *,
@@ -134,8 +138,10 @@ def _process(text: str, opts: Options, depth: int) -> str:
         else:
             # Only lines a rule actually changed lose trailing spaces (a Markdown hard break
             # on an untouched line stays).
+            # A quote's contents were normalized by their own pass (and may hold restored code).
             originals = set(block.lines)
-            entries.extend((line if line in originals else line.rstrip(" \t"), line not in originals)
+            trim = block.kind != "blockquote"
+            entries.extend((line.rstrip(" \t") if trim and line not in originals else line, line not in originals)
                            for line in out)
     final: list[str] = []
     for line in _normalize(entries):
@@ -161,7 +167,12 @@ def _render(block: Block, opts: Options, depth: int) -> list[str] | None:
     if block.kind == "blockquote":
         # The contents already went through this pipeline (guard included); dropping the
         # markers only reveals structure that was there, so the guard does not apply.
-        out = _render_quote(block, opts, depth)
+        try:
+            out = _render_quote(block, opts, depth)
+        except _TooDeep:
+            if depth:
+                raise
+            return None
         return None if out is None or out == block.lines else out
     inline = _inline_fn(opts)
     rule = rules.block_rule(block.kind)
@@ -185,7 +196,7 @@ def _inline_lines(lines: list[str], inline) -> list[str]:
 
 def _render_quote(block: Block, opts: Options, depth: int) -> list[str] | None:
     if depth >= MAX_QUOTE_DEPTH:
-        return None
+        raise _TooDeep
     prefixes, inner = [], []
     for line in block.lines:
         prefix, body = _strip_quote_marker(line)
