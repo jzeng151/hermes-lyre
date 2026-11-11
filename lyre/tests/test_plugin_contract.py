@@ -94,3 +94,25 @@ def test_standard_library_only():
             continue
         outside = {m for m in _imported_modules(path) if m not in sys.stdlib_module_names}
         assert not outside, f"{path.relative_to(PLUGIN_DIR)} imports non-stdlib modules: {sorted(outside)}"
+
+
+def test_registers_the_write_for_ears_skill():
+    (call,) = [(args, kwargs) for name, args, kwargs in _registered().calls if name == "register_skill"]
+    args, kwargs = call
+    name, path = args
+    assert name == "write-for-ears"
+    assert Path(path).is_file()
+    assert kwargs["description"]
+    text = Path(path).read_text(encoding="utf-8")
+    front = yaml.safe_load(text.split("---")[1])
+    assert front["name"] == name and front["description"].startswith("Use when")
+
+
+def test_skill_is_written_for_ears():
+    """The skill follows its own advice: no emoji, no tables, headings in order."""
+    text = lyre.SKILL_PATH.read_text(encoding="utf-8")
+    body = text.split("---", 2)[2]
+    assert all(ord(ch) < 0x2000 for ch in body), "no emoji or symbols"
+    assert "|---" not in body
+    levels = [len(line) - len(line.lstrip("#")) for line in body.splitlines() if line.startswith("#")]
+    assert levels[0] == 1 and all(b - a <= 1 for a, b in zip(levels, levels[1:]))
