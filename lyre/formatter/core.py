@@ -160,7 +160,11 @@ def _process(text: str, opts: Options, depth: int) -> str:
     for block in blocks:
         out = _render(block, opts, depth)
         if out is not None and not any(line.strip() for line in out) and _before_indented_code(block):
-            out = None  # the block may be what ends a list above; removing it would turn the code into list text
+            # The block may end a list above; removing it could turn the code into list text.
+            # Keep its paragraph boundary too: an inserted code label must not join this
+            # retained decoration and let the next pass remove it from a larger paragraph.
+            following = block.meta.get("next")
+            out = [*block.lines, ""] if following and is_block_token_line(following) else None
         first = block.lines[0] if out is None else (out[0] if out else None)
         changed = out is not None
         if first is not None and (changed or prev_changed) and _exposed_at_boundary(first, prev_out):
