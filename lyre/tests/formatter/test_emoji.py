@@ -269,6 +269,37 @@ def test_run_between_word_and_emptied_wrapper_keeps_word_boundary(profile, polic
     assert format_for_speech(out, profile=profile, emoji_policy=policy) == out
 
 
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("policy", ["words", "remove"])
+@pytest.mark.parametrize("text,plain_out,markdown_out", [
+    ("**one🎉**🎊 two", "one two", "**one** two"),
+    ("**one🎉**🎊two", "one two", "**one** two"),
+    ("one 🎉**🎊two**", "one two", "one **two**"),
+])
+def test_run_delimiters_use_original_line_context(text, plain_out, markdown_out, profile, policy):
+    out = format_for_speech(text, profile=profile, emoji_policy=policy)
+    assert out == (plain_out if profile == "plain" else markdown_out)
+    assert format_for_speech(out, profile=profile, emoji_policy=policy) == out
+
+
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("policy", ["words", "remove", "keep"])
+@pytest.mark.parametrize("text,plain_out,markdown_out", [
+    ("**🎉*important* details**", "important details", "***important* details**"),
+    ("**details *important*🎉**", "details important", "**details *important***"),
+    ("*🎉**important** details*", "important details", "***important** details*"),
+    ("*details **important**🎉*", "details important", "*details **important***"),
+])
+def test_removed_emoji_between_nested_delimiters(text, plain_out, markdown_out, profile, policy):
+    if policy == "keep":
+        expected = text.replace("*", "") if profile == "plain" else text
+    else:
+        expected = plain_out if profile == "plain" else markdown_out
+    out = format_for_speech(text, profile=profile, emoji_policy=policy)
+    assert out == expected
+    assert format_for_speech(out, profile=profile, emoji_policy=policy) == out
+
+
 @pytest.mark.parametrize("tone", [chr(cp) for cp in range(0x1F3FB, 0x1F400)])
 @pytest.mark.parametrize("profile", ["plain", "markdown"])
 @pytest.mark.parametrize("policy", ["words", "remove", "keep"])

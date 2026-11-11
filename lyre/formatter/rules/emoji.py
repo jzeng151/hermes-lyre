@@ -84,19 +84,16 @@ _BEFORE_OPENER = " \t([{\"'"  # what may sit before an opening delimiter: (**✅
 _AFTER_CLOSER = " \t.,;:!?)]}\"'"  # what may follow a closing delimiter: **Done 🎉**.  # an emphasis delimiter touching the emoji must keep touching the text
 
 
-def _opening_delimiter_before(left: str) -> bool:
-    """``**`` directly before the emoji, itself after whitespace or line start: it opens emphasis."""
-    body = left.rstrip(_DELIMITERS)
-    return len(body) < len(left) and (not body or body[-1] in _BEFORE_OPENER)
-
-
-def _closing_delimiter_after(right: str, more_runs: bool = False) -> bool:
-    """``**`` directly after the emoji, itself before whitespace or line end: it closes emphasis."""
-    body = right.lstrip(_DELIMITERS)
-    # A gap ending at the next emoji is not the end of the line.
-    return len(body) < len(right) and (
-        (not body and not more_runs) or (bool(body) and body[0] in _AFTER_CLOSER)
-    )
+def _delimiter_edges(text: str) -> tuple[set[int], set[int]]:
+    """Classify boundaries once in the original line, never in truncated run gaps."""
+    openings, closings = paired_delimiter_edges(text)
+    for match in re.finditer(r"[*_~]+", text):
+        start, end = match.span()
+        if start == 0 or text[start - 1] in _BEFORE_OPENER:
+            openings.add(end)
+        if end == len(text) or text[end] in _AFTER_CLOSER:
+            closings.add(start)
+    return openings, closings
 
 
 def _label(sequence: str, opts: Options) -> str | None:
@@ -109,7 +106,7 @@ def _label(sequence: str, opts: Options) -> str | None:
 
 
 def _drop_emptied_wrapper(
-    left: str, right: str, opening: bool, closing: bool, more_runs: bool,
+    left: str, right: str, opening: bool, closing: bool,
 ) -> tuple[str, str]:
     """``**🎉**`` with the emoji removed leaves ``****``: drop the emptied delimiter pair too."""
     marks = left[len(left.rstrip(_DELIMITERS)):]
@@ -117,8 +114,7 @@ def _drop_emptied_wrapper(
     # Only an exact pair that wraps the emoji: the whole run on each side, mirrored, opening on
     # the left and closing on the right. ``*one*🎉**two**`` has a closer then an opener: kept.
     if (marks and closing_marks == marks[::-1]
-            and (opening or _opening_delimiter_before(left))
-            and (closing or _closing_delimiter_after(right, more_runs))):
+            and opening and closing):
         return left[:-len(marks)], right[len(marks):]
     return left, right
 
@@ -131,16 +127,15 @@ def _replace_run(
               if (label := _label(m.group(0), opts))]
     if not labels:
         before = left, right
-        left, right = _drop_emptied_wrapper(left, right, opening, closing, more_runs)
+        left, right = _drop_emptied_wrapper(left, right, opening, closing)
         if (left, right) != before:
             opening = closing = False
     left_text, right_text = left.rstrip(" \t"), right.lstrip(" \t")
     if not left.strip():
         left_text = left  # indentation before the first word is kept as written
     body = " ".join(labels)
-    tight_left = opening or left_text.endswith(tuple(_NO_SPACE_AFTER)) or _opening_delimiter_before(left)
-    tight_right = (closing or right_text.startswith(tuple(_NO_SPACE_BEFORE))
-                   or _closing_delimiter_after(right, more_runs))
+    tight_left = opening or left_text.endswith(tuple(_NO_SPACE_AFTER))
+    tight_right = closing or right_text.startswith(tuple(_NO_SPACE_BEFORE))
     has_right = bool(right_text) or more_runs
     gap_left = bool(left.strip()) and bool(body or has_right) and not tight_left
     gap_right = has_right and bool(body) and not tight_right
@@ -155,7 +150,7 @@ def emoji(text: str, opts: Options) -> str:
         return text
     matches = list(RUN_RE.finditer(text))
     # Keep original offsets even when earlier runs change length or empty a wrapper.
-    openings, closings = paired_delimiter_edges(text)
+    openings, closings = _delimiter_edges(text)
     chunks = []
     left = text[:matches[0].start()]
     for index, match in enumerate(matches):
