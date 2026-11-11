@@ -444,3 +444,30 @@ def test_continuation_line_fence_is_bounded_by_its_item(temp_rules):
     _strip(temp_rules)
     text = "- Example:\n\n  ```py\n  **literal**\n- **next**\n\n**prose**"
     assert format_for_speech(text, profile="plain") == "- Example:\n\n  ```py\n  **literal**\n- next\n\nprose"
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("[broken]( [good](/path/**literal**)", "[broken]( [good](/path/**literal**)"),
+    ("$$x$$ and **prose**\n\n**more prose**\n\n$$y$$", "$$x$$ and prose\n\nmore prose\n\n$$y$$"),
+    ("-\t\t**literal**\n\n**prose**", "-\t\t**literal**\n\nprose"),
+])
+def test_review_round_six_protection(temp_rules, text, expected):
+    _strip(temp_rules)
+    assert format_for_speech(text, profile="plain") == expected
+
+
+def test_separate_quotes_are_counted_separately(temp_rules):
+    add_inline, _ = temp_rules
+    seen = []
+    add_inline("spy", lambda t, o: (seen.append(o.latin), t)[1])
+    format_for_speech("Hello\n\n> ```py\n> code\n\n> Привет мир, это длинный русский текст вне блока кода",
+                      profile="plain")
+    assert seen and not any(seen)
+
+
+def test_spaced_break_ends_a_list(temp_rules):
+    _, add_block = temp_rules
+    seen = []
+    add_block("rule", lambda b, o, inline: (seen.append(b.lines), None)[1])
+    format_for_speech("- item\n* * *\nmore", profile="plain")
+    assert seen == [["* * *"]]
