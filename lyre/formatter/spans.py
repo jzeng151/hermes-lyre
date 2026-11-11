@@ -84,11 +84,17 @@ def block_token_kind(line: str) -> str | None:
     return BLOCK_KINDS[m.group(1)[1]] if m else None
 
 
+def marker_gap(m: re.Match) -> int:
+    """Columns of whitespace after a list marker, with tabs expanded to stops of 4."""
+    line = m.string
+    return len(line[:m.end(3)].expandtabs(4)) - len(line[:m.start(3)].expandtabs(4))
+
+
 def _list_content_column(line: str) -> int | None:
     m = LIST_ITEM_RE.match(line)
     if not m:
         return None
-    gap = len(m.group(3))
+    gap = marker_gap(m)
     # A gap over 4 columns means the item text is indented code; content starts after 1 space.
     return indent_width(m.group(1)) + len(m.group(2)) + (1 if gap == 0 or gap > 4 else gap)
 
@@ -105,8 +111,10 @@ def _fence_end(lines: list[str], start: int, fence: str) -> int:
 
 def _math_end(lines: list[str], start: int) -> int | None:
     first = lines[start].strip()
-    if len(first) >= 4 and first.endswith("$$"):
-        return start
+    if "$$" in first[2:]:
+        # Closed on its own line: a display block only when nothing follows the closing $$;
+        # otherwise it is inline math in a paragraph, protected by the inline pass.
+        return start if first.index("$$", 2) + 2 == len(first) else None
     for j in range(start + 1, len(lines)):
         if "$$" in lines[j]:
             return j
@@ -156,7 +164,7 @@ def _item_fence(line: str) -> tuple[int, re.Match] | None:
     Not when 5+ spaces follow the marker: that content is indented code, protected elsewhere.
     """
     item = LIST_ITEM_RE.match(line)
-    if not item or len(item.group(3)) > 4:
+    if not item or marker_gap(item) > 4:
         return None
     fence = FENCE_OPEN_RE.match(line[item.end():])
     if not fence or (fence.group(2)[0] == "`" and "`" in fence.group(3)):
@@ -215,7 +223,7 @@ def protect_blocks(lines: list[str], stash: Stash) -> list[str]:
                 i, prev_blank = end + 1, False
                 continue
         item = LIST_ITEM_RE.match(line)
-        if item and len(item.group(3)) > 4 and line[item.end():].strip():
+        if item and marker_gap(item) > 4 and line[item.end():].strip():
             # The item's content is indented code (marker, then 5+ spaces): keep the item as
             # code, with the code lines that continue it; Lyre does not speak this rare form.
             column = indent_width(item.group(1)) + len(item.group(2)) + 1
@@ -316,7 +324,9 @@ def _protect_link_targets(line: str, stash: Stash, multiline_only: bool = False)
             break
         k = _target_end(line, j + 2)
         if k is None:
-            break
+            out.append(line[pos:j + 2])  # an unmatched opener: keep looking for later links
+            pos = j + 2
+            continue
         value = line[j + 2:k - 1]
         out.append(line[pos:j + 2])
         if multiline_only and not 0 < value.count("\n") <= 2:
