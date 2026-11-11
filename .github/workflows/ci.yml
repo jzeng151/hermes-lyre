@@ -37,10 +37,13 @@ jobs:
       matrix:
         plugin: ${{ fromJson(needs.discover.outputs.plugins) }}
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python: ["3.11", "3.14"]
-        include:
-          - { os: ubuntu-latest, python: "3.12" }
-          - { os: ubuntu-latest, python: "3.13" }
+        python: ["3.11", "3.12", "3.13", "3.14"]
+        # Every Python on Linux; the oldest and newest on macOS and Windows.
+        exclude:
+          - { os: macos-latest, python: "3.12" }
+          - { os: macos-latest, python: "3.13" }
+          - { os: windows-latest, python: "3.12" }
+          - { os: windows-latest, python: "3.13" }
     runs-on: ${{ matrix.os }}
     name: tests · ${{ matrix.plugin }} · ${{ matrix.os }} · py${{ matrix.python }}
     defaults:
@@ -102,7 +105,7 @@ jobs:
           python -m pip install uv
           python -c 'import sys,tomllib; print("\n".join(tomllib.load(open(sys.argv[1], "rb")).get("tool", {}).get("uv", {}).get("override-dependencies", [])))' hermes-agent/pyproject.toml > "$RUNNER_TEMP/core-overrides.txt"
           pyexe=$(python -c 'import sys; print(sys.executable)')
-          python -m uv pip install --python "$pyexe" --override "$RUNNER_TEMP/core-overrides.txt" -e ./hermes-agent pytest
+          python -m uv pip install --python "$pyexe" --override "$RUNNER_TEMP/core-overrides.txt" -e ./hermes-agent pytest pyyaml
           mkdir -p "$HERMES_HOME"
 
       - name: hermes plugins validate
