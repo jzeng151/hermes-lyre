@@ -186,11 +186,11 @@ def test_intraword_asterisks(text, expected):
     assert plain(text) == expected
 
 
-@pytest.mark.parametrize("text", [
-    "> $$\n> x\n\n$$\n**literal**\n$$",
-    "> - item\n\n    **code**",
+@pytest.mark.parametrize("text,protected", [
+    ("> $$\n> x\n\n$$\n**literal**\n$$", "**literal**"),
+    ("> - item\n\n    **code**", "    **code**"),  # with the list rule, the list is spoken instead
 ])
-def test_quote_keeps_markers_when_unwrapping_would_change_parsing(text):
+def test_quote_keeps_markers_when_unwrapping_would_change_parsing(text, protected):
     once = plain(text)
-    assert once.startswith(">")
+    assert protected in once.split("\n")
     assert plain(once) == once
