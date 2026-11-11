@@ -13,7 +13,8 @@ from . import rules
 from .blocks import QUOTE_RE, segment, syntax_categories
 from .model import (EMOJI_POLICIES, PROFILES, TABLE_STYLES, VERBOSITIES, Block, EmojiPolicy, Options, Profile,
                     TableStyle, Verbosity)
-from .spans import CLOSE, OPEN, TOKEN_RE, Stash, is_block_token_line, protect_blocks, protect_inline
+from .spans import (CLOSE, OPEN, TOKEN_RE, Stash, is_block_token_line, protect_blocks, protect_code_spans,
+                    protect_inline)
 
 MAX_BYTES = 200_000
 MAX_QUOTE_DEPTH = 10
@@ -64,8 +65,7 @@ def _options(profile: str, verbosity: str, emoji_policy: str, table_style: str) 
                    emoji_policy=cast(EmojiPolicy, emoji_policy), table_style=cast(TableStyle, table_style))
 
 
-def is_latin(lines: list[str]) -> bool:
-    """True unless fewer than half of the letters are Latin script (spec: Script detection)."""
+def _letter_counts(lines: list[str]) -> tuple[int, int]:
     latin = total = 0
     for line in lines:
         for ch in TOKEN_RE.sub("", line):
@@ -74,17 +74,52 @@ def is_latin(lines: list[str]) -> bool:
                 code = ord(ch)
                 if code < 0x250 or 0x1E00 <= code <= 0x1EFF or 0x2C60 <= code <= 0x2C7F or 0xA720 <= code <= 0xA7FF:
                     latin += 1
+    return latin, total
+
+
+def is_latin(lines: list[str]) -> bool:
+    """True unless fewer than half of the letters are Latin script (spec: Script detection).
+
+    *lines* must already have their protected spans replaced by tokens.
+    """
+    latin, total = _letter_counts(lines)
     return total == 0 or latin * 2 >= total
+
+
+def _protect(text: str, stash: Stash) -> list[str]:
+    """Step 2 for one container level. Quote lines are protected by their own container pass."""
+    lines = protect_blocks(text.split("\n"), stash)
+    skip = lambda line: bool(is_block_token_line(line) or QUOTE_RE.match(line))  # noqa: E731
+    lines = protect_code_spans(lines, stash, skip)
+    return [line if skip(line) else protect_inline(line, stash) for line in lines]
+
+
+def _reply_letter_counts(text: str, depth: int = 0) -> tuple[int, int]:
+    """Letters outside protected spans, quote contents included (each quote protected as a container)."""
+    lines = _protect(text, Stash())
+    latin, total = _letter_counts([line for line in lines if not QUOTE_RE.match(line)])
+    if depth < MAX_QUOTE_DEPTH:
+        quoted = [_strip_quote_marker(line)[1] for line in lines if QUOTE_RE.match(line)]
+        if quoted:
+            q_latin, q_total = _reply_letter_counts("\n".join(quoted), depth + 1)
+            latin, total = latin + q_latin, total + q_total
+    return latin, total
+
+
+def _strip_quote_marker(line: str) -> tuple[str, str]:
+    """Split one quote line into its marker prefix and its contents."""
+    body = line.lstrip(" ")[1:]
+    if body.startswith(" "):
+        body = body[1:]
+    return line[: len(line) - len(body)], body
 
 
 def _process(text: str, opts: Options, depth: int) -> str:
     stash = Stash()
-    lines = protect_blocks(text.split("\n"), stash)
-    # Quote lines are protected inside their own container pass (steps 2-7 per quote).
-    lines = [line if is_block_token_line(line) or QUOTE_RE.match(line) else protect_inline(line, stash)
-             for line in lines]
+    lines = _protect(text, stash)
     if depth == 0:
-        opts = replace(opts, latin=is_latin(lines))
+        latin, total = _reply_letter_counts(text)
+        opts = replace(opts, latin=total == 0 or latin * 2 >= total)
     entries: list = []
     blocks = segment(lines)
     for i, block in enumerate(blocks):
@@ -97,7 +132,11 @@ def _process(text: str, opts: Options, depth: int) -> str:
         elif not out:
             entries.append(_REMOVED)
         else:
-            entries.extend((line.rstrip(" \t"), True) for line in out)
+            # Only lines a rule actually changed lose trailing spaces (a Markdown hard break
+            # on an untouched line stays).
+            originals = set(block.lines)
+            entries.extend((line if line in originals else line.rstrip(" \t"), line not in originals)
+                           for line in out)
     final: list[str] = []
     for line in _normalize(entries):
         final.extend(stash.restore(line))
@@ -149,11 +188,8 @@ def _render_quote(block: Block, opts: Options, depth: int) -> list[str] | None:
         return None
     prefixes, inner = [], []
     for line in block.lines:
-        stripped = line.lstrip(" ")
-        body = stripped[1:]
-        if body.startswith(" "):
-            body = body[1:]
-        prefixes.append(line[: len(line) - len(body)])
+        prefix, body = _strip_quote_marker(line)
+        prefixes.append(prefix)
         inner.append(body)
     inner_out = _process("\n".join(inner), opts, depth + 1).split("\n")
     block.meta.update(inner=inner, inner_out=inner_out, prefixes=prefixes)
