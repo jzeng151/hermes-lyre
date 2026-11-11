@@ -89,6 +89,10 @@ def _parse(lines: list[str]) -> list[_List] | None:
             # less indented than its siblings but still inside the parent stays in the list.
             while stack and indent < stack[-1].owner:
                 stack.pop()
+            if stack and indent >= stack[-1].items[-1].column + 4:
+                # Four extra columns are indented code (or lazy paragraph text without a blank),
+                # not a child marker. Keep this unsupported structure rather than invent a list.
+                return None
             if not stack or (stack[-1].items and indent >= stack[-1].items[-1].column):
                 # A marker nests only when it reaches the content column of the item above;
                 # a smaller indent (`` - second`` under ``- first``) is a sibling.
@@ -247,6 +251,20 @@ def _has_unsafe_fence(lst: _List, opts: Options) -> bool:
 
 
 def lists(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
+    for line in block.lines:
+        marker = LIST_ITEM_RE.match(line)
+        if marker and syntax_categories(line[marker.end():], None) - {"list"}:
+            # Item-start containers are not recursively rendered here. Keep the entire block,
+            # including inline bytes: fallback inline handling could corrupt quoted code.
+            return block.lines
+    first = LIST_ITEM_RE.match(block.lines[0])
+    prev = block.meta.get("prev")
+    if (first and first.group(2)[0].isdigit() and prev and prev.strip()
+            and not is_block_token_line(prev) and not syntax_categories(prev, None)
+            and (int(first.group(2)[:-1]) != 1 or not block.lines[0][first.end():].strip())):
+        # Segmentation may split a paragraph at any marker. Only a nonempty ordered item
+        # starting at one can interrupt it; otherwise preserve the literal punctuation.
+        return None
     roots = _parse(block.lines)
     if roots is None or any(_has_unsafe_fence(root, opts) for root in roots):
         return None
