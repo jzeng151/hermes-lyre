@@ -40,7 +40,7 @@ def format_for_speech(
 ## Processing model
 
 1. **Size gate.** Over the byte cap: return input.
-2. **Protect spans.** In this order: fenced code blocks (``` and ~~~, with or without an info string, at any indentation, so a fence nested in list output is still a fence on the next pass), display math (`$$...$$`, on one line or across lines), indented code blocks (4 spaces or a tab, not inside a list item), inline code, backslash escapes (`\` followed by an ASCII punctuation character), HTML tags, bare URLs and link targets are replaced by placeholders. Nothing inside a placeholder is ever modified. Lyre's own output never starts a line with 4 or more spaces outside a protected span, so a second pass never finds new indented code.
+2. **Protect spans.** In this order: fenced code blocks (``` and ~~~, with or without an info string, at any indentation, so a fence nested in list output is still a fence on the next pass), display math (`$$...$$`, on one line or across lines), indented code blocks (after a blank line: 4 spaces or a tab at the top level, or the list item's content column plus 4 inside a list item), inline code, backslash escapes (`\` followed by an ASCII punctuation character), HTML tags, bare URLs and link targets are replaced by placeholders. Nothing inside a placeholder is ever modified. Lyre's own output never starts a line with 4 or more spaces outside a protected span, so a second pass never finds new indented code.
 3. **Block pass.** Lines are grouped into blocks: table, list, heading, rule, blockquote, paragraph. One linear pass; no backtracking regexes.
 4. **Rules.** Each block is handed to the rule that owns it. Inline rules (emphasis, emoji, links) run on paragraph, list item, heading and table cell text.
 5. **Restore spans**, applying the code and link rules to the placeholders' surroundings.
@@ -143,7 +143,7 @@ Output (`normal`):
 - Ordered lists keep their source numbers: `5. Five` -> `5, Five`.
 - Numbers are followed by a comma, never a period, so markdown clients do not turn the output back into a list.
 - Nesting is spoken, not shown by depth of indentation: every nested line is indented exactly 2 spaces whatever its level, because 4 spaces would be read as indented code on the next pass and by markdown clients. Level 2 items are `sub-item N`; level 3 and deeper are `level 3 item N` (and `2 level 3 items.` for the count line).
-- A list item's continuation lines are re-indented to the item's own output indent (0 or 2 spaces); fenced code inside an item keeps its own lines unchanged.
+- A list item's prose continuation lines are re-indented to the item's own output indent (0 or 2 spaces). Fenced and indented code inside an item are protected spans: their lines keep their original bytes, including indentation, and get R7 labels at the item's output indent.
 - Task lists: `- [x] Done` -> `1, (done) Done`; `- [ ] Open` -> `1, (not done) Open`.
 - A list item's inline code is kept.
 - A single-item list still gets `1 item.`.
@@ -212,8 +212,8 @@ End of code.
 - Line count is the number of content lines. `1 line`, otherwise `N lines`.
 - Fence handling: **open question Q1**. Until #2 decides, fences are kept on every profile.
 - Unclosed fence: the rest of the reply is treated as code and left unchanged, with no labels added.
-- Idempotency: if the line directly before a fence is already a label in Lyre's form and the line after it is `End of code.`, no label is added.
-- Indented code blocks get the same labels with `Code, N lines:`; their indentation is kept.
+- Indented code blocks get the same labels with `Code, N lines:`; their indentation is kept. A blank line separates each label from an indented block, because a label line directly above it would make markdown read the code as part of the paragraph.
+- Idempotency, for fenced and indented blocks alike: if the nearest non-blank line before the block is already a label in Lyre's form and the nearest non-blank line after it is `End of code.`, no label is added.
 - `brief`: `Code:` before, `End of code.` after.
 - `full`: as `normal`.
 - Applies to both profiles.
@@ -263,6 +263,7 @@ End of code.
 - [ ] **AC-18** Given a list nested three levels deep with a fenced code block in a level 3 item, when formatted twice, then the output is identical, no line outside the fence starts with 4 or more spaces, and no code labels are added on the second pass.
 - [ ] **AC-19** Given a reply that is only `🎉`, or only decorative emoji and whitespace, then the output is the input unchanged.
 - [ ] **AC-20** Given unfenced tree output with box-drawing characters, when formatted twice, then those lines are unchanged.
+- [ ] **AC-21** Given a top-level indented code block and a list item containing indented code (`- Example:`, a blank line, then six-space-indented Python with `**` and an emoji in a string), when formatted twice, then each block's lines are byte-identical, each has exactly one label pair, and the output equals the first pass.
 
 ## Edge Cases
 

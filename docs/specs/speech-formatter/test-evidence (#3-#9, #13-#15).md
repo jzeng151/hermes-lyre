@@ -28,6 +28,7 @@ Owner: @jzeng151
 | AC-18 Deep lists stay idempotent | Unit test, two passes | | Pending |
 | AC-19 Emoji-only reply returned unchanged | Unit test | | Pending |
 | AC-20 Unfenced tree lines unchanged | Unit test, two passes | | Pending |
+| AC-21 Indented code labeled once, kept byte-identical, also inside lists | Unit test, two passes | | Pending |
 
 ## Operational Evidence
 
