@@ -41,7 +41,8 @@ _UNIT = (
     "(?:[#*0-9]\uFE0F?\u20E3"                      # keycap
     "|[\U0001F1E6-\U0001F1FF]{2}"                  # flag pair
     f"|[{_PRESENTATION}]{_MOD}"                     # emoji by default
-    f"|[{_TEXT_DEFAULT}]\uFE0F{_MOD})"             # text by default, emoji with U+FE0F
+    f"|[{_TEXT_DEFAULT}]\uFE0F{_MOD}"              # text by default, emoji with U+FE0F
+    f"|[{_TEXT_DEFAULT}][\U0001F3FB-\U0001F3FF]{_MOD})"  # or with a skin tone (☝🏽)
 )
 # Inside a joiner sequence the parts may omit the selector (woman health worker, heart on fire).
 _JOINED = f"(?:{_UNIT}|[{_TEXT_DEFAULT}]\uFE0F?{_MOD})"

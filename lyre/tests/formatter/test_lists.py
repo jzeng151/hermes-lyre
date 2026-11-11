@@ -91,3 +91,26 @@ CASES = [NESTED, "5. Five\n6. Six", "- [x] Done", "- a\n  - b\n    - c\n      - 
 def test_idempotent(text, verbosity, profile):
     once = format_for_speech(text, profile=profile, verbosity=verbosity)
     assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
+
+
+@pytest.mark.parametrize("text,expected", [
+    # indented code that starts with a marker and a fence stays code
+    ('Example:\n\n    - ```py\n    x = "**bold**"\n    - ```\n\nAfter **bold**',
+     'Example:\n\n    - ```py\n    x = "**bold**"\n    - ```\n\nAfter bold'),
+    # block syntax inside an item: the list is left to default handling
+    ("- a\n  ---\n- b", "- a\n  ---\n- b"),
+    # an item emptied by the inline rules keeps only its number
+    ("- 🎉\n- b", "2 items.\n1,\n2, b"),
+    # a change of marker type starts a separate list
+    ("- Prerequisite\n\n1. Build\n2. Test", "1 item.\n1, Prerequisite\n\n2 items.\n1, Build\n2, Test"),
+    # a link labelled x is not a task box
+    ("- [x](https://example.com)\n- Other", "2 items.\n1, [x](https://example.com)\n2, Other"),
+    # prose after a nested list returns to its owning item and ends the nested list
+    ("- Parent\n  - child\n\n  Parent continuation\n  - second child\n- Next",
+     "2 items.\n1, Parent\n  1 sub-item.\n  sub-item 1, child\n\nParent continuation\n"
+     "  1 sub-item.\n  sub-item 1, second child\n2, Next"),
+])
+def test_review_round_structure(text, expected):
+    once = plain(text)
+    assert once == expected
+    assert plain(once) == once
