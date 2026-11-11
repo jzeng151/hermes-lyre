@@ -23,7 +23,7 @@ def md(text: str, **kw) -> str:
     ("***both*** word", "both word"),
     ("~~gone~~ word", "(removed: gone) word"),
     ("**[docs](https://x.test/a_b_c)**", "[docs](https://x.test/a_b_c)"),
-    ("- *item* one\n- __two__", "- item one\n- two"),
+    ("- *item* one\n- __two__", "2 items.\n1, item one\n2, two"),
 ])
 def test_emphasis_plain(text, expected):
     assert plain(text) == expected

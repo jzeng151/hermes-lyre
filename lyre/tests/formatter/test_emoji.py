@@ -31,7 +31,7 @@ CASES = [
     ("🏴\U000e0067\U000e0062\U000e0065\U000e006e\U000e0067\U000e007f Hello", "Hello"),
     ("🇯🇵 Tokyo", "Tokyo"),
     ("  🎉 Indented  prose\n  🎉 Child", "  Indented  prose\n  Child"),
-    ("* 🎉 First\n* ⚠️ Second", "* First\n* (warning) Second"),
+    ("* 🎉 First\n* ⚠️ Second", "2 items.\n1, First\n2, (warning) Second"),
     ("Heading\n🎉\nNext", "Heading\nNext"),
     ("2 * 3 ✅ ©️ © ↔ ↔️ ⭐ x", "2 * 3 (done) © ↔ x"),
 ]

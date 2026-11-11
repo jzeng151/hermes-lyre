@@ -149,7 +149,15 @@ Output (`normal`):
 - Numbers are followed by a comma, never a period, so markdown clients do not turn the output back into a list.
 - Nesting is spoken, not shown by depth of indentation: every nested line is indented exactly 2 spaces whatever its level, because 4 spaces would be read as indented code on the next pass and by markdown clients. Level 2 items are `sub-item N`; level 3 and deeper are `level 3 item N` (and `2 level 3 items.` for the count line).
 - A list item's prose continuation lines are re-indented to the item's own output indent (0 or 2 spaces). Fenced and indented code inside an item are protected spans: their lines keep their original bytes, including indentation, and get R7 labels at the item's output indent.
-- Task lists: `- [x] Done` -> `1, (done) Done`; `- [ ] Open` -> `1, (not done) Open`.
+- An item that is only a code block (a fence opened on the item line, `- ```py`) puts its number on its own line (`1,`) and the code on the next line, so the fence starts a line and stays protected on the next pass.
+- Task lists: `- [x] Done` -> `1, (done) Done`; `- [ ] Open` -> `1, (not done) Open`. A task box needs a space or the item end after `]`, so a link labelled `x` is not a task.
+- A change of marker type at the same level (`-` to `1.`, `-` to `*`) starts a separate list with its own count.
+- Prose after a nested list belongs to the item whose content column it reaches.
+- A marker nests only when it reaches the content column of the item above; a smaller extra indent makes a sibling.
+- A list whose item holds a fence with no closing line inside the item is left to the default inline handling.
+- A continuation line whose rewrite would start with block syntax it did not start with (a list marker revealed by removing an emoji) is kept as written.
+- An item emptied by the inline rules (only decoration) keeps its number and nothing else.
+- A list whose item continuation lines hold a heading, quote, thematic break or table is left to the default inline handling, because speaking it would change what the next pass sees.
 - A list item's inline code is kept.
 - A single-item list still gets `1 item.`.
 - `brief`: no count lines.
