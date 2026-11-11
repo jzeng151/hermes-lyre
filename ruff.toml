@@ -1,0 +1,15 @@
+# Lint rules follow Hermes core (PLW1514 explicit encodings, ASYNC blocking calls),
+# plus pyflakes/pycodestyle errors and the core code-health cap on function complexity.
+preview = true
+target-version = "py311"
+line-length = 120
+
+[lint]
+select = ["E", "F", "W", "PLW1514", "ASYNC210", "ASYNC220", "ASYNC221", "ASYNC251", "C901"]
+ignore = ["E501"]  # Hermes core does not enforce strict line length
+
+[lint.mccabe]
+max-complexity = 20
+
+[lint.per-file-ignores]
+"*/tests/**" = ["PLW1514"]
