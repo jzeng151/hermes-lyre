@@ -204,6 +204,7 @@ def protect_blocks(lines: list[str], stash: Stash) -> list[str]:
         return lines
     out: list[str] = []
     i, prev_blank, list_col = 0, True, None
+    columns: list[int] = []  # content columns of the open list levels, outermost first
     while i < len(lines):
         line = lines[i]
         threshold = _code_threshold(line, prev_blank, list_col)
@@ -217,12 +218,17 @@ def protect_blocks(lines: list[str], stash: Stash) -> list[str]:
         if item_fence:
             offset, fence = item_fence
             list_col = list_content_column(line)
+            _open_level(columns, line, list_col)
             end = _item_fence_end(lines, i, fence.group(2), list_col)
             out.append(line[:offset] + stash.put("f", "\n".join([line[offset:], *lines[i + 1:end + 1]])))
             i, prev_blank = end + 1, False
             continue
         fence = FENCE_OPEN_RE.match(line)
         if fence and not (fence.group(2)[0] == "`" and "`" in fence.group(3)):
+            if list_col is not None and indent_width(line) < list_col:
+                # A fence is never a lazy continuation: left of the item's text it ends that list,
+                # and every deeper one, but stays inside an ancestor item it is indented under.
+                list_col = _close_levels(columns, indent_width(line))
             if list_col is not None and indent_width(line) >= list_col:
                 end = _item_fence_end(lines, i, fence.group(2), list_col)  # bounded by its item
             else:
@@ -233,6 +239,8 @@ def protect_blocks(lines: list[str], stash: Stash) -> list[str]:
         if line.lstrip().startswith("$$"):
             end = _math_end(lines, i)
             if end is not None:
+                if list_col is not None and prev_blank and indent_width(line) < list_col:
+                    list_col = _close_levels(columns, indent_width(line))  # as outdented text after a blank
                 _stash_lines(out, lines, i, end, "m", stash)
                 i, prev_blank = end + 1, False
                 continue
@@ -246,10 +254,30 @@ def protect_blocks(lines: list[str], stash: Stash) -> list[str]:
             i, prev_blank = end + 1, False
             continue
         list_col = _track_list(line, prev_blank, list_col)
+        if list_col is None:
+            columns.clear()
+        elif list_content_column(line) is not None:
+            _open_level(columns, line, list_col)
         out.append(line)
         prev_blank = not line.strip()
         i += 1
     return out
+
+
+def _open_level(columns: list[int], line: str, column: int | None) -> None:
+    """Record an item line: close the levels it is not nested in, then open its own."""
+    indent = indent_width(line)
+    while columns and columns[-1] > indent:
+        columns.pop()
+    if column is not None:
+        columns.append(column)
+
+
+def _close_levels(columns: list[int], indent: int) -> int | None:
+    """Close the list levels a block at *indent* is left of; the innermost one left open, if any."""
+    while columns and columns[-1] > indent:
+        columns.pop()
+    return columns[-1] if columns else None
 
 
 def _escaped(line: str, index: int) -> bool:
