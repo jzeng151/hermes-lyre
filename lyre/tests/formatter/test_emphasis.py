@@ -175,3 +175,22 @@ CASES = [
 def test_idempotent(text, profile, verbosity):
     once = format_for_speech(text, profile=profile, verbosity=verbosity)
     assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("un*believ*able", "unbelievable"),
+    ("这是*强调*文字", "这是强调文字"),
+    ("2*3*4 = 24", "2*3*4 = 24"),
+])
+def test_intraword_asterisks(text, expected):
+    assert plain(text) == expected
+
+
+@pytest.mark.parametrize("text", [
+    "> $$\n> x\n\n$$\n**literal**\n$$",
+    "> - item\n\n    **code**",
+])
+def test_quote_keeps_markers_when_unwrapping_would_change_parsing(text):
+    once = plain(text)
+    assert once.startswith(">")
+    assert plain(once) == once

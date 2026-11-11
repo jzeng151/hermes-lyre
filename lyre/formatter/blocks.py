@@ -123,8 +123,9 @@ def _one_block(lines: list[str], i: int) -> tuple[Block, int]:
     if is_thematic_break(line):
         return Block("rule", [line]), i + 1
     if _is_table_start(lines, i):
-        # GFM: rows run to a blank line or the start of another block; a short row may have no pipe.
-        j = _take_while(lines, i, lambda s: bool(s.strip()) and ("|" in s or not _starts_block(s)))
+        # GFM: rows run to a blank line or the start of another block (even one holding a
+        # pipe); a short row may have no pipe.
+        j = _take_while(lines, i, lambda s: bool(s.strip()) and not _starts_block(s))
         return Block("table", lines[i:j]), j
     if LIST_ITEM_RE.match(line):
         j = _list_end(lines, i)

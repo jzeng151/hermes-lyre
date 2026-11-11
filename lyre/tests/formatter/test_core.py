@@ -356,3 +356,25 @@ def test_pipe_less_short_row_stays_in_table(temp_rules):
     add_block("table", lambda b, o, i: seen.append(list(b.lines)))
     format_for_speech("| Name | Stock |\n|---|---|\nAlpha\n| Beta | 4 |\n\nAfter", profile="plain")
     assert seen == [["| Name | Stock |", "|---|---|", "Alpha", "| Beta | 4 |"]]
+
+
+def test_link_target_across_lines_is_protected(temp_rules):
+    add_inline, _ = temp_rules
+    add_inline("strip", lambda t, o: t.replace("**", ""))
+    text = "[label](\n/path/**literal**\n) and **prose**"
+    assert format_for_speech(text, profile="plain") == "[label](\n/path/**literal**\n) and prose"
+
+
+def test_table_ends_at_block_starter_with_pipe(temp_rules):
+    _, add_block = temp_rules
+    seen = []
+    add_block("heading", lambda b, o, inline: (seen.append(b.lines), None)[1])
+    format_for_speech("| a | b |\n|---|---|\n| 1 | 2 |\n# Heading | detail", profile="plain")
+    assert seen == [["# Heading | detail"]]
+
+
+def test_list_item_with_indented_code_content_is_protected(temp_rules):
+    add_inline, _ = temp_rules
+    add_inline("strip", lambda t, o: t.replace("**", ""))
+    text = "-     **literal**\n\n      **more code**"
+    assert format_for_speech(text, profile="plain") is text

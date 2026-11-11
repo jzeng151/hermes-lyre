@@ -188,6 +188,13 @@ def protect_blocks(lines: list[str], stash: Stash) -> list[str]:
                 _stash_lines(out, lines, i, end, "m", stash)
                 i, prev_blank = end + 1, False
                 continue
+        item = LIST_ITEM_RE.match(line)
+        if item and len(item.group(3)) > 4 and line[item.end():].strip():
+            # The item's content is indented code (marker, then 5+ spaces): keep the whole
+            # line as code; Lyre does not speak this rare form.
+            _stash_lines(out, lines, i, i, "c", stash)
+            i, prev_blank = i + 1, False
+            continue
         threshold = _code_threshold(line, prev_blank, list_col)
         if threshold is not None:
             end = _indented_end(lines, i, threshold)
@@ -271,7 +278,9 @@ def _target_end(line: str, k: int) -> int | None:
     return None if depth else k
 
 
-def _protect_link_targets(line: str, stash: Stash) -> str:
+def _protect_link_targets(line: str, stash: Stash, multiline_only: bool = False) -> str:
+    """Stash each link target. With *multiline_only*, only targets that cross one or two line
+    breaks (CommonMark allows one before the destination and one before the title)."""
     out, pos = [], 0
     while True:
         j = line.find("](", pos)
@@ -280,9 +289,12 @@ def _protect_link_targets(line: str, stash: Stash) -> str:
         k = _target_end(line, j + 2)
         if k is None:
             break
+        value = line[j + 2:k - 1]
         out.append(line[pos:j + 2])
-        out.append(stash.put("t", line[j + 2:k - 1]))
-        out.append(")")
+        if multiline_only and not 0 < value.count("\n") <= 2:
+            out.append(value + ")")
+        else:
+            out.append(stash.put("t", value) + ")")
         pos = k
     out.append(line[pos:])
     return "".join(out)
@@ -311,13 +323,17 @@ def protect_code_spans(lines: list[str], stash: Stash, skip) -> list[str]:
 
     Consecutive non-blank lines that *skip* rejects are matched together, so a span opened on
     one line and closed on a later one becomes a single token whose value holds the newlines.
+    Link targets that cross lines are protected the same way.
     """
     out: list[str] = []
     group: list[str] = []
 
     def flush() -> None:
         if group:
-            out.extend(_protect_code_spans("\n".join(group), stash).split("\n"))
+            text = _protect_code_spans("\n".join(group), stash)
+            if "](" in text:
+                text = _protect_link_targets(text, stash, multiline_only=True)
+            out.extend(text.split("\n"))
             group.clear()
 
     for line in lines:
