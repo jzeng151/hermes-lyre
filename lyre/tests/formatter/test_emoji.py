@@ -85,3 +85,35 @@ def test_exposed_list_marker_after_removal_is_guarded():
 def test_idempotent(text):
     once = format_for_speech(text, profile="plain")
     assert format_for_speech(once, profile="plain") == once
+
+
+@pytest.mark.parametrize("text,plain_out,markdown_out", [
+    ("**✅ Done**", "(done) Done", "**(done) Done**"),
+    ("**🎉 Hello**", "Hello", "**Hello**"),
+    ("**Done** ✅", "Done (done)", "**Done** (done)"),
+    ("**Done**✅", "Done (done)", "**Done** (done)"),
+    ("Done ✅**x**", "Done (done) x", "Done (done) **x**"),
+])
+def test_emoji_next_to_emphasis_keeps_delimiters_tight(text, plain_out, markdown_out):
+    assert format_for_speech(text, profile="plain") == plain_out
+    assert format_for_speech(text, profile="markdown") == markdown_out
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("✅ ◽ ready ◾", "(done) ready"),
+    ("✅ Ⓜ️ Metro", "(done) Metro"),
+    (f"👨{ZWJ}⚕️ doctor ❤{ZWJ}🔥 ok ❤️ love", "doctor ok love"),
+    ("⚠ bare warning ✔ bare", "(warning) bare warning (done) bare"),
+])
+def test_more_emoji_presentations(text, expected):
+    assert format_for_speech(text, profile="plain") == expected
+
+
+@pytest.mark.parametrize("text", [
+    "Play F♯ and B♭, not F and B.",
+    "Rated ★★★ ✓ approved, ♞ to f3, 🜁 air",
+    "Arrows ⬅ and ↔ in text, © 2026 and ™",
+    "Heart ❤ in text",
+])
+def test_text_symbols_are_kept(text):
+    assert format_for_speech(text, profile="plain") is text
