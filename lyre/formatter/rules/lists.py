@@ -62,6 +62,10 @@ def _parse(lines: list[str]) -> list[_List] | None:
     stack: list[_List] = []
     prev_blank = False
     for line in lines:
+        # Paired and escaped backticks are already tokens. Any remaining backtick is unmatched
+        # in its inline container; dropping item markers could pair it with another item's code.
+        if "`" in line:
+            return None
         m = LIST_ITEM_RE.match(line)
         if m and (is_thematic_break(line) or LIST_ITEM_RE.match(line[m.end():])):
             return None  # ``* * *`` is a break, not an item; ``- - a`` nests on the marker line
@@ -191,7 +195,7 @@ def _labelled_neighbours(extras: list, opening: str | None = None) -> list[bool]
     return [already_labelled(b, a) for b, a in zip(before, after)]
 
 
-def _is_unclosed(token: str, opts: Options) -> bool:
+def _unsafe_fence(token: str, opts: Options) -> bool:
     value = opts.span(token) if opts.span and is_block_token_line(token) else None
     if value is None or token.strip()[1] != "f":
         return False
@@ -200,29 +204,31 @@ def _is_unclosed(token: str, opts: Options) -> bool:
     fence = opener[:len(opener) - len(opener.lstrip(opener[:1]))]  # the whole run, ```` or ~~~~~
     last = lines[-1].strip()
     closed = len(lines) >= 2 and len(last) >= len(fence) and last == fence[0] * len(last)
-    return not closed
+    # Restoration discards the token's output padding, even in nested lists. A fence lifted
+    # off an item marker therefore starts at column zero; its closer must still be valid there.
+    return not closed or indent_width(lines[-1]) > indent_width(lines[0]) + 3
 
 
-def _unclosed_fence(lst: _List, opts: Options) -> bool:
-    """True when an item holds a fence with no closing line inside the item.
+def _has_unsafe_fence(lst: _List, opts: Options) -> bool:
+    """True when an item's fence cannot safely leave its list container.
 
-    Fences on the item line and on continuation lines count alike: without the list container,
-    such a fence would swallow everything after it on the next pass, so the list stays as written.
+    Fences on item and continuation lines count alike: a missing or over-indented closer
+    could swallow later content without the container, so the list stays as written.
     """
     for item in lst.items:
-        if _is_unclosed(item.text.strip(), opts):
+        if _unsafe_fence(item.text.strip(), opts):
             return True
         for kind, value in item.extras:
-            if kind == "list" and _unclosed_fence(value, opts):
+            if kind == "list" and _has_unsafe_fence(value, opts):
                 return True
-            if kind == "line" and _is_unclosed(value, opts):
+            if kind == "line" and _unsafe_fence(value, opts):
                 return True
     return False
 
 
 def lists(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
     roots = _parse(block.lines)
-    if roots is None or any(_unclosed_fence(root, opts) for root in roots):
+    if roots is None or any(_has_unsafe_fence(root, opts) for root in roots):
         return None
     out: list[str] = []
     for root in roots:
@@ -235,8 +241,8 @@ def lists(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
         if opts.verbosity == "full" and opts.latin:
             part.append("End of list.")
         out.extend(part + [""] * trailing)
-    while out and not out[-1].strip():
-        out.pop()
+    # Trailing blanks may separate this list from protected indented code in the next block.
+    # Keep them after the full-verbosity end label too, so the next pass still sees code.
     return out
 
 

@@ -59,7 +59,8 @@ _UNIT = (
     "|[\U0001F1E6-\U0001F1FF]{2}"                  # flag pair
     f"|[{_PRESENTATION}]{_MOD}"                     # emoji by default
     f"|[{_TEXT_DEFAULT}]\uFE0F{_MOD}"              # text by default, emoji with U+FE0F
-    f"|[{_TEXT_DEFAULT}][\U0001F3FB-\U0001F3FF]{_MOD})"  # or with a skin tone (☝🏽)
+    f"|[{_TEXT_DEFAULT}][\U0001F3FB-\U0001F3FF]{_MOD}"  # or with a skin tone (☝🏽)
+    "|[\U0001F3FB-\U0001F3FF])"                     # standalone skin tone
 )
 # Inside a joiner sequence the parts may omit the selector (woman health worker, heart on fire).
 _JOINED = f"(?:{_UNIT}|[{_TEXT_DEFAULT}]\uFE0F?{_MOD})"
