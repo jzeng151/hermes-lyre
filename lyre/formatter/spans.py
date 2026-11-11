@@ -162,7 +162,7 @@ def protect_blocks(lines: list[str], stash: Stash) -> list[str]:
     i, prev_blank, list_col = 0, True, None
     while i < len(lines):
         line = lines[i]
-        item_fence = _item_fence(line)
+        item_fence = None if _code_threshold(line, prev_blank, list_col) is not None else _item_fence(line)
         if item_fence:
             offset, fence = item_fence
             end = _fence_end(lines, i, fence.group(2))
