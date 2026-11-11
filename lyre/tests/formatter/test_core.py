@@ -247,3 +247,39 @@ def test_registry_rejects_duplicates(temp_rules):
         rules.register_inline_rule("dup", lambda t, o: t)
     with pytest.raises(ValueError):
         rules.register_block_rule("table", lambda b, o, i: None)
+
+
+def test_code_span_across_lines_is_protected(temp_rules):
+    add_inline, _ = temp_rules
+    add_inline("strip", lambda t, o: t.replace("**", ""))
+    text = "see `first\n**code**\nlast` and **x**"
+    assert format_for_speech(text, profile="plain") == "see `first\n**code**\nlast` and x"
+
+
+def test_script_detection_ignores_protected_quote_contents(temp_rules):
+    add_inline, _ = temp_rules
+    seen = []
+    add_inline("spy", lambda t, o: (seen.append(o.latin), t)[1])
+    code = "\n".join(f"> value_{i} = compute_total(items)" for i in range(30))
+    format_for_speech("Привет мир, как дела\n\n> ```python\n" + code + "\n> ```", profile="plain")
+    assert seen and not any(seen)
+
+
+def test_only_changed_lines_lose_trailing_spaces(temp_rules):
+    add_inline, _ = temp_rules
+    add_inline("strip", lambda t, o: t.replace("**", ""))
+    assert format_for_speech("keep hard break  \n**bold**  ", profile="plain") == "keep hard break  \nbold"
+
+
+def test_url_followed_by_many_parentheses_is_linear():
+    text = "https://example.test/x" + ")" * 100_000
+    start = time.perf_counter()
+    assert format_for_speech(text, profile="plain") is text
+    assert time.perf_counter() - start < 1.0
+
+
+def test_guard_catches_lone_list_marker(temp_rules):
+    add_inline, _ = temp_rules
+    add_inline("strip", lambda t, o: t.replace("**", ""))
+    text = "Before\n\n**-**\n\nAfter"
+    assert format_for_speech(text, profile="plain") is text

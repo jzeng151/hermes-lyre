@@ -225,12 +225,45 @@ def _protect_link_targets(line: str, stash: Stash) -> str:
 
 
 def _url_token(match: re.Match, stash: Stash) -> str:
+    """Stash the URL without trailing punctuation or unbalanced closing parentheses.
+
+    Counts parentheses once and walks back by index, so a long run of ``)`` stays linear.
+    """
     url = match.group(0)
-    tail = ""
-    while url and (url[-1] in URL_TRAILING or (url[-1] == ")" and url.count("(") < url.count(")"))):
-        tail = url[-1] + tail
-        url = url[:-1]
-    return stash.put("u", url) + tail
+    opens, closes = url.count("("), url.count(")")
+    end = len(url)
+    while end:
+        ch = url[end - 1]
+        if ch == ")" and closes > opens:
+            closes -= 1
+        elif ch not in URL_TRAILING:
+            break
+        end -= 1
+    return stash.put("u", url[:end]) + url[end:]
+
+
+def protect_code_spans(lines: list[str], stash: Stash, skip) -> list[str]:
+    """Protect code spans, including spans that cross lines inside one run of text.
+
+    Consecutive non-blank lines that *skip* rejects are matched together, so a span opened on
+    one line and closed on a later one becomes a single token whose value holds the newlines.
+    """
+    out: list[str] = []
+    group: list[str] = []
+
+    def flush() -> None:
+        if group:
+            out.extend(_protect_code_spans("\n".join(group), stash).split("\n"))
+            group.clear()
+
+    for line in lines:
+        if not line.strip() or skip(line):
+            flush()
+            out.append(line)
+        else:
+            group.append(line)
+    flush()
+    return out
 
 
 def protect_inline(line: str, stash: Stash) -> str:

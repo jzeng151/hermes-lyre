@@ -39,7 +39,7 @@ def _starts_block(line: str) -> bool:
 def syntax_categories(line: str, prev: str | None) -> set[str]:
     """Block syntax *line* starts with; *prev* is the line above (setext underlines need it)."""
     found = set()
-    if LIST_ITEM_RE.match(line) and line.strip() not in ("-", "*", "+"):
+    if LIST_ITEM_RE.match(line):
         found.add("list")
     if ATX_RE.match(line):
         found.add("atx")
