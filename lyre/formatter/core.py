@@ -173,7 +173,7 @@ def _process(text: str, opts: Options, depth: int) -> str:
     if depth == 0:
         latin, total = _protected_letter_counts(lines, stash=stash)
         opts = replace(opts, latin=total == 0 or latin * 2 >= total)
-    opts = replace(opts, span=stash.value_of)
+    opts = replace(opts, span=stash.value_of, protect_url=lambda url: stash.put("u", url))
     entries: list = []
     blocks = segment(lines)
     for i, block in enumerate(blocks):

@@ -25,6 +25,8 @@ class Options:
     script; rules must then insert no English words (spec: Script detection). ``span`` reads the
     original text of a protected token at the current container level (None outside a pass), so
     rules such as code labels can see what a placeholder stands for without changing it.
+    ``protect_url`` stashes emitted destinations until the current container is restored,
+    including any repeated inline validation performed by block rules.
     """
 
     profile: Profile
@@ -33,6 +35,7 @@ class Options:
     table_style: TableStyle = "sentences"
     latin: bool = True
     span: Callable[[str], str | None] | None = field(default=None, compare=False, repr=False)
+    protect_url: Callable[[str], str] | None = field(default=None, compare=False, repr=False)
 
 
 @dataclass

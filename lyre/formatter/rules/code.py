@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import re
 
+from ..blocks import starts_block
 from ..model import Block, Options
+from ..spans import indent_width
 from . import InlineFn, register_block_rule, register_code_label
 
 LANGUAGES = {
@@ -76,7 +78,18 @@ def already_labelled(prev: str | None, nxt: str | None) -> bool:
 def code(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
     if block.kind != "code" or already_labelled(block.meta.get("prev_text"), block.meta.get("next_text")):
         return None
-    return labelled(block.lines[0], opts)
+    following = block.meta.get("next")
+    if following and indent_width(following) >= 4:
+        # Keep prose after a fence from gaining a blank boundary and becoming code.
+        return None
+    out = labelled(block.lines[0], opts)
+    if out and (block.meta.get("prev") or "").lstrip().startswith(">"):
+        # A prose label must not become a lazy continuation of the preceding quote.
+        out.insert(0, "")
+    if out and following and following.strip() and not starts_block(following):
+        # Keep the end label out of a following multiline paragraph or Setext heading.
+        out.append("")
+    return out
 
 
 register_block_rule("code", code)
