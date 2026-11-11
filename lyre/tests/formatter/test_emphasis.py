@@ -76,6 +76,17 @@ def test_heading_that_would_expose_a_list_is_kept():
     assert plain("# - Build") == "# - Build"
 
 
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+@pytest.mark.parametrize("heading", ["# $$", "# **$$**", "## $$ opener"])
+def test_math_leading_heading_keeps_display_math_protected(heading, verbosity):
+    math = "$$\n**literal**\n$$"
+    once = plain(heading + "\n\n" + math, verbosity=verbosity)
+    twice = plain(once, verbosity=verbosity)
+    assert math in once
+    assert math in twice
+    assert twice == once
+
+
 def test_quote_markers_removed_on_plain():
     assert plain("> quoted **x**\n>\n> more") == "quoted x\n\nmore"
 

@@ -44,6 +44,18 @@ def test_break_before_indented_code_is_kept():
     assert format_for_speech(once, profile="plain") == once
 
 
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+def test_break_before_indented_fence_keeps_code_scope(profile, verbosity):
+    code = "  ```\n**literal**\n  ```"
+    text = "- item\n***\n" + code
+    once = format_for_speech(text, profile=profile, verbosity=verbosity)
+    twice = format_for_speech(once, profile=profile, verbosity=verbosity)
+    assert code in once
+    assert code in twice
+    assert twice == once
+
+
 def test_removed_drawing_line_keeps_quotes_apart():
     once = format_for_speech("> ```\n──\n> ```\n> **literal**", profile="plain")
     assert "**literal**" in once

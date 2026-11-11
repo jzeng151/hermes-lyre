@@ -542,3 +542,58 @@ def test_removed_first_line_does_not_expose_indented_code(temp_rules):
     add_inline("drop", lambda t, o: "" if t.strip() == "X" else t)
     once = format_for_speech("X\n    print('x')", profile="plain")
     assert once == "print('x')"
+
+
+@pytest.mark.parametrize("item,indent", [("- item", "  "), ("- item\n  - nested", "    "), ("100. item", "     ")])
+def test_quote_code_inside_list_is_protected(temp_rules, item, indent):
+    _strip(temp_rules)
+    text = f"{item}\n{indent}> ```py\n{indent}> **literal**\n{indent}> ```\n\n**prose**"
+    once = format_for_speech(text, profile="plain")
+    assert f"{indent}> **literal**" in once
+    assert "**prose**" not in once
+    assert format_for_speech(once, profile="plain") == once
+
+
+@pytest.mark.parametrize("prefix", ["", "`first\n**code**\nlast`\n\n"])
+def test_backticks_across_cells_do_not_hide_table(temp_rules, prefix):
+    _strip(temp_rules)
+    _, add_block = temp_rules
+    seen = []
+    add_block("table", lambda b, o, inline: (seen.append(b.lines), None)[1])
+    text = prefix + "| `open | b |\n|---|---|\n| close` | **cell** |"
+    once = format_for_speech(text, profile="plain")
+    assert once.startswith(prefix)
+    assert len(seen) == 1
+    assert seen[0][:2] == ["| `open | b |", "|---|---|"]
+    assert "**cell**" not in once
+    assert format_for_speech(once, profile="plain") == once
+
+
+@pytest.mark.parametrize("destination", ["/path/**literal**", "</path with spaces/**literal**>"])
+def test_reference_destination_on_following_line_is_protected(temp_rules, destination):
+    _strip(temp_rules)
+    text = f"[id]:\n  {destination}\n\n[label][id] and **prose**"
+    once = format_for_speech(text, profile="plain")
+    assert destination in once
+    assert "**prose**" not in once
+    assert format_for_speech(once, profile="plain") == once
+
+
+def test_code_span_before_tag_shaped_literal_is_protected(temp_rules):
+    _strip(temp_rules)
+    text = '`**code** <span title="`"> **prose**'
+    once = format_for_speech(text, profile="plain")
+    assert '`**code** <span title="`' in once
+    assert "**prose**" not in once
+    assert format_for_speech(once, profile="plain") == once
+
+
+def test_guard_does_not_expose_display_math_opener(temp_rules):
+    _strip(temp_rules)
+    _, add_block = temp_rules
+    add_block("heading", lambda b, o, inline: [b.lines[0].removeprefix("# ")])
+    text = "# $$\n\n$$\n**literal**\n$$"
+    once = format_for_speech(text, profile="plain")
+    assert once.startswith("# $$")
+    assert "**literal**" in once
+    assert format_for_speech(once, profile="plain") == once
