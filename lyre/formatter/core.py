@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from collections import Counter
 from dataclasses import replace
+from itertools import groupby
 from typing import cast
 
 from . import rules
@@ -109,7 +110,12 @@ def _protect(text: str, stash: Stash) -> list[str]:
     out = []
     for block in segment(lines):
         if block.kind == "list":
-            block.lines = [stash.put("q", line) if QUOTE_RE.match(line) else line for line in block.lines]
+            preserved = []
+            for quoted, run in groupby(block.lines, key=lambda line: bool(QUOTE_RE.match(line))):
+                # A quoted fence/math block needs all its lines in the same script-counting
+                # container; separate tokens would expose each code body as prose.
+                preserved.extend([stash.put("q", "\n".join(run))] if quoted else run)
+            block.lines = preserved
         if block.kind == "blockquote" and any(not QUOTE_RE.match(line) for line in block.lines):
             # Lazy continuations lack marker prefixes. Keep this unsupported container whole,
             # rather than exposing a cross-line code span or inventing quote markers.
