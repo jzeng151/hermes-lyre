@@ -137,6 +137,43 @@ def test_incomplete_html_header_cannot_capture_repeated_column_label(profile, ve
     assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
 
 
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+@pytest.mark.parametrize("text", [
+    "| A | B |\n|---|---|\n| *a $$ **b | c $$ d* |",
+    "| $$ | B |\n|---|---|\n| *a | b* $$ |",
+    "| A | B |\n|---|---|\n| *a $$ | b |\n| c | $$ d* |",
+    "| A | B |\n|---|---|\n| *a $$$$ **b | c $$ d* |",
+    "| A | B |\n|---|---|\n| *a \\$$ **b | c $$ d* |",
+    "| A | B |\n|---|---|\n| *a $\\$ **b | c $$ d* |",
+    "| \\$$ | B |\n|---|---|\n| **a** | b |",
+])
+def test_unmatched_math_keeps_cell_boundaries(text, profile, verbosity):
+    once = format_for_speech(text, profile=profile, verbosity=verbosity)
+    assert once == text
+    assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
+
+
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+@pytest.mark.parametrize("cell", [
+    "$$**literal**$$",
+    "`$$`",
+    "https://x.test/$$",
+    "[x](foo$$bar)",
+    '<a title="$$">',
+    "$5",
+    r"$\$",
+    "$`literal`$",
+])
+def test_complete_or_protected_math_still_speaks_tables(cell, profile, verbosity):
+    text = f"| A |\n|---|\n| {cell} |"
+    once = format_for_speech(text, profile=profile, verbosity=verbosity)
+    assert once.startswith("Table, 1 row")
+    assert cell in once
+    assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
+
+
 def test_table_after_paragraph_line():
     assert plain("Results:\n| A | B |\n|---|---|\n|1|2|") == (
         "Results:\nTable, 1 row, 2 columns: A, B.\nRow 1: A 1, B 2.\nEnd of table.")
