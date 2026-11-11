@@ -14,8 +14,12 @@ from . import InlineFn, register_block_rule
 
 
 def blockquote(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
-    if opts.profile != "plain" or _keep_markers(block.meta["inner_out"]):
-        return None  # the core keeps the markers
+    inner_out = block.meta["inner_out"]
+    if opts.profile != "plain" or _keep_markers(inner_out) or (
+            block.meta.get("prev_text") is not None and _holds_code_or_math(inner_out)):
+        # The core keeps the markers. A quote can be what ends a list above; an exposed fence or
+        # $$ block would not end it, so quoted code or math after other text stays quoted.
+        return None
     inner = list(block.meta["inner_out"])
     while inner and not inner[0].strip():
         inner.pop(0)
@@ -33,6 +37,10 @@ def blockquote(block: Block, opts: Options, inline: InlineFn) -> list[str] | Non
         # indented code block is still code on the next pass and prose is not merged.
         inner = ["", *inner]
     return inner
+
+
+def _holds_code_or_math(lines: list[str]) -> bool:
+    return any(FENCE_OPEN_RE.match(line) or line.lstrip().startswith("$$") for line in lines)
 
 
 def _keep_markers(lines: list[str]) -> bool:
