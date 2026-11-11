@@ -21,11 +21,17 @@ _REF_DEF_START_RE = re.compile(r"^\[[^\]\n]+\]:")
 
 
 @dataclass
+class _Continuation:
+    text: str
+    prev: str  # original preceding line, before labels or inline rules changed the context
+
+
+@dataclass
 class _Item:
     number: str
     text: str
     column: int  # where the item's content starts; continuation lines indented less leave it
-    extras: list = field(default_factory=list)  # ("line", text) | ("blank", "") | ("list", _List)
+    extras: list = field(default_factory=list)  # ("line", _Continuation) | ("blank", "") | ("list", _List)
 
 
 @dataclass
@@ -106,7 +112,7 @@ def _parse(lines: list[str]) -> list[_List] | None:
             # nested list); directly after an item the line is a lazy continuation of it.
             while prev_blank and len(stack) > 1 and indent_width(line) < stack[-1].items[-1].column:
                 stack.pop()
-            stack[-1].items[-1].extras.append(("line", line.strip()))
+            stack[-1].items[-1].extras.append(("line", _Continuation(line.strip(), lines[i - 1])))
         if line.strip():
             prev_blank = False
     return roots
@@ -143,7 +149,7 @@ def _label(lst: _List, number: str, opts: Options) -> str:
     return f"level {lst.level} item {number}, "
 
 
-def _emit(lst: _List, opts: Options, inline: InlineFn, out: list[str]) -> None:
+def _emit(lst: _List, opts: Options, inline: InlineFn, out: list[str]) -> bool:
     pad = "" if lst.level == 1 else "  "
     count = _count_line(lst, opts)
     if count:
@@ -161,17 +167,23 @@ def _emit(lst: _List, opts: Options, inline: InlineFn, out: list[str]) -> None:
             out.append((pad + _label(lst, item.number, opts) + text).rstrip())
         for kind, value in item.extras:
             if kind == "list":
-                _emit(value, opts, inline, out)
+                if not _emit(value, opts, inline, out):
+                    return False
             elif kind == "blank":
                 out.append("")
-            elif is_block_token_line(value):
-                out.append(pad + value)  # protected code: restored byte for byte later
+            elif is_block_token_line(value.text):
+                out.append(pad + value.text)  # protected code: restored byte for byte later
             else:
-                text = inline(value).strip()
-                if syntax_categories(text, None) - syntax_categories(value, None):
-                    text = value  # the rules exposed block syntax (``🎉 - hidden``): keep the line
+                text = inline(value.text).strip()
+                before = syntax_categories(value.text, value.prev)
+                prev = out[-1] if out else None
+                if syntax_categories(pad + text, prev) - before:
+                    text = value.text  # keep inline markup that shields block syntax
+                    if syntax_categories(pad + text, prev) - before:
+                        return False  # changed context makes even the original line unsafe
                 if text:
                     out.append(pad + text)
+    return True
 
 
 def _unsafe_fence(token: str, opts: Options) -> bool:
@@ -200,7 +212,7 @@ def _has_unsafe_fence(lst: _List, opts: Options) -> bool:
         for kind, value in item.extras:
             if kind == "list" and _has_unsafe_fence(value, opts):
                 return True
-            if kind == "line" and _unsafe_fence(value, opts):
+            if kind == "line" and _unsafe_fence(value.text, opts):
                 return True
     return False
 
@@ -212,7 +224,8 @@ def lists(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
     out: list[str] = []
     for root in roots:
         part: list[str] = []
-        _emit(root, opts, inline, part)
+        if not _emit(root, opts, inline, part):
+            return None
         trailing = 0
         while part and not part[-1].strip():
             part.pop()
