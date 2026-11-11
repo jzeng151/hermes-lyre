@@ -153,6 +153,9 @@ Output (`normal`):
 - Task lists: `- [x] Done` -> `1, (done) Done`; `- [ ] Open` -> `1, (not done) Open`. A task box needs a space or the item end after `]`, so a link labelled `x` is not a task.
 - A change of marker type at the same level (`-` to `1.`, `-` to `*`) starts a separate list with its own count.
 - Prose after a nested list belongs to the item whose content column it reaches.
+- A marker nests only when it reaches the content column of the item above; a smaller extra indent makes a sibling.
+- A list whose item holds a fence with no closing line inside the item is left to the default inline handling.
+- A continuation line whose rewrite would start with block syntax it did not start with (a list marker revealed by removing an emoji) is kept as written.
 - An item emptied by the inline rules (only decoration) keeps its number and nothing else.
 - A list whose item continuation lines hold a heading, quote, thematic break or table is left to the default inline handling, because speaking it would change what the next pass sees.
 - A list item's inline code is kept.

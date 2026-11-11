@@ -67,7 +67,9 @@ def _parse(lines: list[str]) -> list[_List] | None:
             if stack and indent == stack[-1].indent and kind != stack[-1].kind:
                 stack.pop()  # same level, new marker type: a separate list
                 _new_list(stack, roots, len(stack) + 1, indent, kind)
-            elif not stack or (indent > stack[-1].indent and stack[-1].items):
+            elif not stack or (stack[-1].items and indent >= stack[-1].items[-1].column):
+                # A marker nests only when it reaches the content column of the item above;
+                # a smaller indent (`` - second`` under ``- first``) is a sibling.
                 _new_list(stack, roots, len(stack) + 1, indent, kind)
             target = stack[-1]
             marker = m.group(2)
@@ -146,13 +148,35 @@ def _emit(lst: _List, opts: Options, inline: InlineFn, out: list[str]) -> None:
                 out.append(pad + value)  # protected code: restored byte for byte later
             else:
                 text = inline(value).strip()
+                if syntax_categories(text, None) - syntax_categories(value, None):
+                    text = value  # the rules exposed block syntax (``🎉 - hidden``): keep the line
                 if text:
                     out.append(pad + text)
 
 
+def _unclosed_fence(lst: _List, opts: Options) -> bool:
+    """True when an item's code is a fence with no closing line inside the item.
+
+    Moving such a fence to its own output line would let it swallow everything after the list
+    on the next pass, so the list is left as written.
+    """
+    for item in lst.items:
+        raw = item.text.strip()
+        value = opts.span(raw) if opts.span and is_block_token_line(raw) else None
+        if value is not None and raw[1] == "f":
+            lines = value.split("\n")
+            fence = lines[0].lstrip()[:3]
+            last = lines[-1].strip()
+            if len(lines) < 2 or not last.startswith(fence) or last != last[0] * len(last):
+                return True
+        if any(kind == "list" and _unclosed_fence(value, opts) for kind, value in item.extras):
+            return True
+    return False
+
+
 def lists(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
     roots = _parse(block.lines)
-    if roots is None:
+    if roots is None or any(_unclosed_fence(root, opts) for root in roots):
         return None
     out: list[str] = []
     for root in roots:
