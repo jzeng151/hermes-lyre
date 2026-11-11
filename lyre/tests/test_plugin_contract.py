@@ -65,12 +65,16 @@ def test_no_stream_hold():
             assert not kwargs.get("hold_stream"), "Lyre must not hold the stream"
 
 
-def test_hook_accepts_full_payload_and_leaves_reply_alone():
-    params = inspect.signature(hook.transform_llm_output).parameters.values()
+def test_hook_accepts_full_payload_and_is_off_by_default():
+    ctx = _registered()
+    ctx.get_config = lambda key, default=None: default  # fresh install: no settings written
+    (callback,) = [args[1] for call, args, _ in ctx.calls if call == "register_hook"]
+    params = inspect.signature(callback).parameters.values()
     assert any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params)
     payload: dict[str, Any] = dict(response_text="**Done** ✅", session_id="s", model="m",
                                    platform="telegram", turn_id="t", some_future_field=1)
-    assert hook.transform_llm_output(**payload) is None
+    assert callback(**payload) is None
+    assert hook.surface("telegram") == ("messaging", "markdown")
 
 
 def _imported_modules(path: Path) -> set[str]:

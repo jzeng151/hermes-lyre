@@ -74,7 +74,7 @@ Settings are read on every call through `ctx.get_config`, so changes made by `/a
 
 | Condition | Behavior | Log |
 | --- | --- | --- |
-| Any exception in steps 1 to 5 | Return `None` | One `WARNING`: `lyre: rewrite skipped (<ExceptionType>) turn=<turn_id>`. No reply text, no traceback with locals. |
+| Any exception in steps 1 to 5 | Return `None` | One `WARNING` with the traceback (`exc_info=True`): `lyre: rewrite skipped (<ExceptionType>) turn=<turn_id>`. No reply text; tracebacks carry no local variables (ADR 0005). |
 | Formatter took longer than 200 ms | Return the result | One `INFO` with the duration and input length, no reply text. |
 | Invalid setting value | Use the default for that key | Handled in [settings.md](settings%20%28%2311%29.md). |
 | Hook exceeds `plugins.hook_callback_timeout` | Hermes abandons the call and delivers the original | Hermes logs it; nothing for Lyre to do. |
