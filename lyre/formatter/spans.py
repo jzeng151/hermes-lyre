@@ -197,6 +197,11 @@ def protect_blocks(lines: list[str], stash: Stash) -> list[str]:
 
     A fence opened on a list item line keeps the marker: the line becomes ``- <token>``.
     """
+    # Without any block opener, indentation, or a wide item gap there is nothing to
+    # stash. In particular, list ownership need not be tracked just for ordinary items.
+    if not any("```" in line or "~~~" in line or "$$" in line or line.startswith(" ")
+               or "\t" in line or "     " in line for line in lines):
+        return lines
     out: list[str] = []
     i, prev_blank, list_col = 0, True, None
     columns: list[int] = []  # content columns of the open list levels, outermost first
