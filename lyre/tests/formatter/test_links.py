@@ -23,7 +23,9 @@ def plain(text: str, **kw) -> str:
     ("![chart](https://x.test/c.png)", "Image: chart, link: https://x.test/c.png"),
     ("![](https://x.test/c.png)", "Image, link: https://x.test/c.png"),
     ("see https://x.test/a_b_c", "see https://x.test/a_b_c"),
-    ('[**docs**](https://x.test/a_b_ "title")', "docs, link: https://x.test/a_b_"),
+    ('[**docs**](https://x.test/a_b "title")', "docs, link: https://x.test/a_b"),
+    # a trailing underscore would fall outside the URL token on the next pass: link kept
+    ('[**docs**](https://x.test/a_b_ "title")', '[docs](https://x.test/a_b_ "title")'),
     ("[`npm`](https://x.test)", "`npm`, link: https://x.test"),
     ("x ``a ` **b**`` y", "x ``a ` **b**`` y"),
 ])
@@ -69,4 +71,23 @@ CASES = ["[docs](https://x.test/a?b=1)", "<https://x.test/a_b>", "![chart](https
 @pytest.mark.parametrize("profile", ["plain", "markdown"])
 def test_idempotent(text, profile):
     once = format_for_speech(text, profile=profile)
+    assert format_for_speech(once, profile=profile) == once
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("[`a\nb`](https://x.test)\n\n**bold**", "`a\nb`, link: https://x.test\n\nbold"),
+    ("[directory](./_private_)", "[directory](./_private_)"),
+    ("[section](#_private_)", "[section](#_private_)"),
+    ("[x](https://x.test/a.)", "[x](https://x.test/a.)"),
+    ("[![Build status](https://ci.test/badge.svg)](https://ci.test/build)",
+     "Image: Build status, source: https://ci.test/badge.svg, link: https://ci.test/build"),
+    ("See [Foo](https://en.wikipedia.org/wiki/Foo_(bar)) now",
+     "See Foo, link: https://en.wikipedia.org/wiki/Foo_(bar) now"),
+])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_review_round_links(text, expected, profile):
+    if profile == "markdown":
+        expected = expected.replace("\n\nbold", "\n\n**bold**")
+    once = format_for_speech(text, profile=profile)
+    assert once == expected
     assert format_for_speech(once, profile=profile) == once

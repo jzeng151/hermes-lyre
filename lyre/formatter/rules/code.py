@@ -53,6 +53,8 @@ def labelled(line: str, opts: Options) -> list[str] | None:
     Also used by the list rule for code inside list items, which the list rule owns.
     """
     token = line.strip()
+    if token[1] not in "fc":
+        return None  # display math and other block tokens are not code
     original = opts.span(token) if opts.span and opts.latin else None
     if original is None:
         return None

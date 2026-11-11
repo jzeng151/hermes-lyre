@@ -138,6 +138,7 @@ def _emit(lst: _List, opts: Options, inline: InlineFn, out: list[str]) -> None:
             # An item the inline rules emptied (only decoration) keeps its number, nothing more.
             text = inline(_task(raw, opts)).strip()
             out.append((pad + _label(lst, item.number, opts) + text).rstrip())
+        labelled_at = _labelled_neighbours(item.extras)
         for index, (kind, value) in enumerate(item.extras):
             if kind == "list":
                 _emit(value, opts, inline, out)
@@ -146,7 +147,7 @@ def _emit(lst: _List, opts: Options, inline: InlineFn, out: list[str]) -> None:
             elif is_block_token_line(value):
                 # Protected code, restored byte for byte later; labelled here because the list
                 # rule owns it (a second pass sees it outside the list and must find the labels).
-                lines = None if _labelled_nearby(item.extras, index) else labelled(value, opts)
+                lines = None if labelled_at[index] else labelled(value, opts)
                 out.extend(pad + line if line else line for line in lines or [value])
             else:
                 text = inline(value).strip()
@@ -154,11 +155,24 @@ def _emit(lst: _List, opts: Options, inline: InlineFn, out: list[str]) -> None:
                     out.append(pad + text)
 
 
-def _labelled_nearby(extras: list, index: int) -> bool:
-    texts = [value for kind, value in extras if kind == "line"]
-    lines = [value for kind, value in extras[:index] if kind == "line"]
-    after = [value for kind, value in extras[index + 1:] if kind == "line"]
-    return bool(texts) and already_labelled(lines[-1] if lines else None, after[0] if after else None)
+def _labelled_neighbours(extras: list) -> list[bool]:
+    """For each extra, whether the nearest text lines around it are a code label and its end.
+
+    Two linear passes, so an item holding many code blocks stays linear.
+    """
+    before: list[str | None] = []
+    last = None
+    for kind, value in extras:
+        before.append(last)
+        if kind == "line":
+            last = value
+    after: list[str | None] = [None] * len(extras)
+    following = None
+    for index in range(len(extras) - 1, -1, -1):
+        after[index] = following
+        if extras[index][0] == "line":
+            following = extras[index][1]
+    return [already_labelled(b, a) for b, a in zip(before, after)]
 
 
 def lists(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:

@@ -88,3 +88,18 @@ CASES = [SPEC, "Intro\n```js\na()\nb()\n```\nAfter", "Para\n\n    x = 1\n\nAfter
 def test_idempotent(text, verbosity, profile):
     once = format_for_speech(text, profile=profile, verbosity=verbosity)
     assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
+
+
+def test_math_in_list_item_is_not_labelled_as_code():
+    out = format_for_speech("- Math:\n  $$x^2$$\n- next", profile="plain")
+    assert "code" not in out.lower()
+    assert "  $$x^2$$" in out.split("\n")
+
+
+def test_many_code_blocks_in_one_item_stay_fast():
+    import time
+    text = "- item\n" + "".join(f"\n  ```\n  x{i}\n  ```\n" for i in range(3000))
+    start = time.perf_counter()
+    once = format_for_speech(text, profile="plain")
+    assert time.perf_counter() - start < 2.0
+    assert format_for_speech(once, profile="plain") == once

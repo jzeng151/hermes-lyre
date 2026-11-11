@@ -241,8 +241,12 @@ End of code.
 | `<https://x.test>` | `https://x.test` |
 | `![chart](https://x.test/c.png)` | `Image: chart, link: https://x.test/c.png` |
 | bare `https://x.test/...` | unchanged |
+| `[![badge](https://ci.test/b.svg)](https://ci.test/build)` | `Image: badge, source: https://ci.test/b.svg, link: https://ci.test/build` |
+| `[dir](./_private_)`, `[s](#top)` | unchanged (see below) |
 
 - URLs are never shortened, decoded or re-encoded.
+- A link is rewritten only when the next pass protects its destination whole as a bare URL. Relative paths, fragments, other schemes and URLs ending in punctuation keep the link as written, so no pass can change the destination.
+- A label that is a protected span (inline code, even across lines) stays a token in the output; only the label-equals-URL comparison reads its text.
 - Inline code keeps its backticks on both profiles. The backticks are the protection boundary: without them, a second pass would treat `**literal**` or a status emoji inside the code as prose and change it, breaking AC-5 and AC-6. Whether screen readers announce the backticks is Q5.
 - Inline code containing a backtick (double-backtick spans) keeps its delimiters and inner text exactly.
 - `markdown` profile: links are still rewritten, because the raw URL is what lets a listener open or copy it.
