@@ -11,10 +11,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from ..model import Block, Options
-from ..blocks import syntax_categories
+from ..blocks import is_thematic_break, syntax_categories
 from ..spans import LIST_ITEM_RE, indent_width, is_block_token_line
 from . import InlineFn, register_block_rule
-from .code import already_labelled, labelled
+from .code import LABEL_RE, already_labelled, labelled
 
 
 @dataclass
@@ -63,18 +63,20 @@ def _parse(lines: list[str]) -> list[_List] | None:
     prev_blank = False
     for line in lines:
         m = LIST_ITEM_RE.match(line)
+        if m and (is_thematic_break(line) or LIST_ITEM_RE.match(line[m.end():])):
+            return None  # ``* * *`` is a break, not an item; ``- - a`` nests on the marker line
         if m:
             indent, kind = indent_width(m.group(1)), _kind(m.group(2))
             # A nested list ends only at a marker left of its parent's content column; a marker
             # less indented than its siblings but still inside the parent stays in the list.
             while stack and indent < stack[-1].owner:
                 stack.pop()
-            if stack and indent == stack[-1].indent and kind != stack[-1].kind:
-                stack.pop()  # same level, new marker type: a separate list
-                _new_list(stack, roots, len(stack) + 1, indent, kind)
-            elif not stack or (stack[-1].items and indent >= stack[-1].items[-1].column):
+            if not stack or (stack[-1].items and indent >= stack[-1].items[-1].column):
                 # A marker nests only when it reaches the content column of the item above;
                 # a smaller indent (`` - second`` under ``- first``) is a sibling.
+                _new_list(stack, roots, len(stack) + 1, indent, kind)
+            elif kind != stack[-1].kind:
+                stack.pop()  # a sibling with a new marker type: a separate list at this level
                 _new_list(stack, roots, len(stack) + 1, indent, kind)
             target = stack[-1]
             marker = m.group(2)
@@ -141,11 +143,16 @@ def _emit(lst: _List, opts: Options, inline: InlineFn, out: list[str]) -> None:
             # starts a line and stays protected on the next pass.
             out.append(pad + _label(lst, item.number, opts).rstrip())
             out.extend(pad + line if line else line for line in labelled(raw, opts) or [raw])
+        elif LABEL_RE.match(raw):
+            # A code label as the item's text: on its own line, so the next pass still sees the
+            # label directly above the code it names.
+            out.append(pad + _label(lst, item.number, opts).rstrip())
+            out.append(pad + raw)
         else:
             # An item the inline rules emptied (only decoration) keeps its number, nothing more.
             text = inline(_task(raw, opts)).strip()
             out.append((pad + _label(lst, item.number, opts) + text).rstrip())
-        labelled_at = _labelled_neighbours(item.extras)
+        labelled_at = _labelled_neighbours(item.extras, item.text.strip())
         for index, (kind, value) in enumerate(item.extras):
             if kind == "list":
                 _emit(value, opts, inline, out)
@@ -164,13 +171,13 @@ def _emit(lst: _List, opts: Options, inline: InlineFn, out: list[str]) -> None:
                     out.append(pad + text)
 
 
-def _labelled_neighbours(extras: list) -> list[bool]:
+def _labelled_neighbours(extras: list, opening: str | None = None) -> list[bool]:
     """For each extra, whether the nearest text lines around it are a code label and its end.
 
     Two linear passes, so an item holding many code blocks stays linear.
     """
     before: list[str | None] = []
-    last = None
+    last = opening or None  # the item's own text is the first line above its extras
     for kind, value in extras:
         before.append(last)
         if kind == "line":
@@ -189,9 +196,11 @@ def _is_unclosed(token: str, opts: Options) -> bool:
     if value is None or token.strip()[1] != "f":
         return False
     lines = value.split("\n")
-    fence = lines[0].lstrip()[:3]
+    opener = lines[0].lstrip()
+    fence = opener[:len(opener) - len(opener.lstrip(opener[:1]))]  # the whole run, ```` or ~~~~~
     last = lines[-1].strip()
-    return len(lines) < 2 or not last.startswith(fence) or last != last[0] * len(last)
+    closed = len(lines) >= 2 and len(last) >= len(fence) and last == fence[0] * len(last)
+    return not closed
 
 
 def _unclosed_fence(lst: _List, opts: Options) -> bool:
