@@ -13,11 +13,11 @@ def test_script_detection_reuses_root_protection(monkeypatch, text):
     original = core._protect
     root_calls = 0
 
-    def tracked(value, stash):
+    def tracked(value, stash, segmented=None):
         nonlocal root_calls
         if value == text:
             root_calls += 1
-        return original(value, stash)
+        return original(value, stash, segmented)
 
     monkeypatch.setattr(core, "_protect", tracked)
     core.format_for_speech(text, profile="plain")
