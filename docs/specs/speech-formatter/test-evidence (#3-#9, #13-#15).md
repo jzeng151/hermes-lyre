@@ -15,12 +15,12 @@ Owner: @jzeng151
 | AC-5 Idempotent | Property test over golden corpus and fuzz inputs | | Pending |
 | AC-6 Code contents byte-identical | Property test | | Pending |
 | AC-7 Protected spans unchanged | Unit tests | | Pending |
-| AC-8 Oversize input skipped | Unit and timing test | | Pending |
+| AC-8 Oversize input skipped | Unit and timing test | `test_core.py::test_oversize_input_is_the_same_object_and_fast` | Pass |
 | AC-9 Under 50 ms for 20 KB | Performance test on CI | | Pending |
 | AC-10 No spoken markup in transformed regions | Property test with the pass-through exemptions | | Pending |
 | AC-11 No English inserted in non-Latin replies | Unit tests (Japanese, Arabic, Russian samples) | | Pending |
 | AC-12 Verbosity keeps all information | Parametrized test | | Pending |
-| AC-13 Exception returns input | Unit test with a rule forced to raise | | Pending |
+| AC-13 Exception returns input | Unit test with a rule forced to raise | `test_core.py::test_raising_rule_returns_input` | Pass |
 | AC-14 Survives core WhatsApp plain-output formatter | Round-trip test | | Pending |
 | AC-15 Escapes and inline code stable across passes | Unit test, plain profile | | Pending |
 | AC-16 Braille text unchanged | Unit test | | Pending |
