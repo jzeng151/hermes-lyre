@@ -119,6 +119,24 @@ def test_review_round_two_pass_through(text):
     assert plain(text) == text
 
 
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+def test_link_target_backtick_cannot_capture_code_in_later_row(profile, verbosity):
+    text = "| A |\n|---|\n| [link](foo`bar) |\n| `✅` |"
+    once = format_for_speech(text, profile=profile, verbosity=verbosity)
+    assert once == text
+    assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
+
+
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+def test_incomplete_html_header_cannot_capture_repeated_column_label(profile, verbosity):
+    text = "| >* | <a x |\n|---|---|\n| | x |"
+    once = format_for_speech(text, profile=profile, verbosity=verbosity)
+    assert once == text
+    assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
+
+
 def test_table_after_paragraph_line():
     assert plain("Results:\n| A | B |\n|---|---|\n|1|2|") == (
         "Results:\nTable, 1 row, 2 columns: A, B.\nRow 1: A 1, B 2.\nEnd of table.")

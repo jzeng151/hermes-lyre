@@ -117,3 +117,12 @@ def test_removed_first_line_does_not_expose_code(profile):
     once = format_for_speech("🎉\n    print('x')", profile=profile)
     assert "code" not in once.lower()
     assert format_for_speech(once, profile=profile) == once
+
+
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+def test_decoration_before_fence_stays_separate_from_code_label(profile, verbosity):
+    code = "```py\nx  \n```"
+    once = format_for_speech("🎉\n" + code, profile=profile, verbosity=verbosity)
+    assert code in once
+    assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
