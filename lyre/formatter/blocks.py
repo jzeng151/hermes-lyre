@@ -39,8 +39,8 @@ def _is_table_start(lines: list[str], i: int) -> bool:
     return "|" in lines[i] and i + 1 < len(lines) and is_table_separator(lines[i + 1])
 
 
-def _starts_block(line: str) -> bool:
-    """True when *line* interrupts a paragraph."""
+def starts_block(line: str) -> bool:
+    """True when *line* interrupts a paragraph; inline content never continues across it."""
     return bool(block_token_kind(line) or QUOTE_RE.match(line) or ATX_RE.match(line)
                 or is_thematic_break(line) or LIST_ITEM_RE.match(line))
 
@@ -84,7 +84,7 @@ def _list_end(lines: list[str], i: int) -> int:
                 j = k
                 continue
             break
-        if not (LIST_ITEM_RE.match(line) or indent_width(line) > 0) and _starts_block(line):
+        if not (LIST_ITEM_RE.match(line) or indent_width(line) > 0) and starts_block(line):
             break
         j += 1
     return j
@@ -96,15 +96,10 @@ def _paragraph(lines: list[str], i: int) -> tuple[Block, int]:
         if SETEXT_RE.match(lines[j]):
             level = 1 if lines[j].strip()[0] == "=" else 2
             return Block("heading", lines[i:j + 1], {"level": level, "setext": True}), j + 1
-        if _starts_block(lines[j]) or _is_table_start(lines, j):
+        if starts_block(lines[j]) or _is_table_start(lines, j):
             break  # a table may interrupt a paragraph (GFM), as in "Results:" over a table
         j += 1
     return Block("paragraph", lines[i:j]), j
-
-
-def _starts_block(line: str) -> bool:
-    return bool(block_token_kind(line) or QUOTE_RE.match(line) or ATX_RE.match(line) or is_thematic_break(line)
-                or LIST_ITEM_RE.match(line))
 
 
 def _one_block(lines: list[str], i: int) -> tuple[Block, int]:
@@ -125,7 +120,7 @@ def _one_block(lines: list[str], i: int) -> tuple[Block, int]:
     if _is_table_start(lines, i):
         # GFM: rows run to a blank line or the start of another block (even one holding a
         # pipe); a short row may have no pipe.
-        j = _take_while(lines, i, lambda s: bool(s.strip()) and not _starts_block(s))
+        j = _take_while(lines, i, lambda s: bool(s.strip()) and not starts_block(s))
         return Block("table", lines[i:j]), j
     if LIST_ITEM_RE.match(line):
         j = _list_end(lines, i)
