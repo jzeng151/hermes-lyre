@@ -231,3 +231,36 @@ def test_reference_definition_keeps_list_container(text, verbosity, profile):
     once = format_for_speech(text, profile=profile, verbosity=verbosity)
     assert once == text
     assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
+
+
+@pytest.mark.parametrize("text", [
+    "- a\n-\n  **===**\n- b",
+    "- a | b\n  **---|---**\n- c",
+    "- a\n  🎉 |\n  **---|---**\n- b",
+    "- a | b\n  🎉\n  ---|---\n- c",
+])
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_continuation_emission_preserves_block_context(text, verbosity, profile):
+    once = format_for_speech(text, profile=profile, verbosity=verbosity)
+    if "**" in text:
+        assert text.splitlines()[-2].strip() in once
+    else:
+        # Keeping the separator cannot help when an emptied line exposes a table header.
+        assert once.startswith("- a | b\n")
+    assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
+
+
+@pytest.mark.parametrize("text", [
+    "- a | b\n  🎉\n  ---|---\n- c",
+    "- parent\n  - a | b\n    🎉\n    ---|---\n- c",
+])
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_list_rule_declines_unsafe_original_continuation(text, verbosity, profile):
+    from lyre.formatter.core import _inline_fn
+    from lyre.formatter.model import Block, Options
+    from lyre.formatter.rules.lists import lists
+
+    opts = Options(profile=profile, verbosity=verbosity)
+    assert lists(Block("list", text.splitlines()), opts, _inline_fn(opts)) is None
