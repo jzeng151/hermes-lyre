@@ -13,6 +13,70 @@ def plain(text: str, **kw) -> str:
     return format_for_speech(text, profile="plain", **kw)
 
 
+@pytest.mark.parametrize("text", [
+    "- a\n      - b\n- c",
+    "- a\n       - b\n- c",
+    "- parent\n  - a\n        - b\n- c",
+    "10. a\n        - b\n11. c",
+])
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_overindented_marker_does_not_invent_child_list(text, verbosity, profile):
+    once = format_for_speech(text, profile=profile, verbosity=verbosity)
+    assert once == text
+    assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
+
+
+@pytest.mark.parametrize("ending", ["2. Not a new list.", "0) Not a new list.", "2.", "1.", "1)"])
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_ordered_marker_cannot_interrupt_paragraph(ending, verbosity, profile):
+    text = "The answer is\n" + ending
+    once = format_for_speech(text, profile=profile, verbosity=verbosity)
+    assert once == text
+    assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
+
+
+@pytest.mark.parametrize("text", [
+    "- > ~~~python\n  > **literal**\n  > ~~~\n- next",
+    "- parent\n  - > ~~~python\n    > **literal**\n    > ~~~\n- next",
+    "1. > ~~~python\n   > **literal**\n   > ~~~\n2. next",
+])
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_item_start_quote_keeps_fenced_code_bytes(text, verbosity, profile):
+    once = format_for_speech(text, profile=profile, verbosity=verbosity)
+    assert once == text
+    assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
+
+
+@pytest.mark.parametrize("indent", [2, 3, 4, 5])
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_nested_marker_within_three_extra_columns_is_a_list(indent, verbosity, profile):
+    text = "- a\n" + " " * indent + "- b\n- c"
+    once = format_for_speech(text, profile=profile, verbosity=verbosity)
+    assert "  sub-item 1, b" in once
+    assert "2, c" in once
+    assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
+
+
+@pytest.mark.parametrize("prefix,marker", [
+    ("The answer is\n", "1."),
+    ("The answer is\n", "1)"),
+    ("The answer is\n\n", "2."),
+    ("", "2."),
+    ("# Heading\n", "2."),
+])
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_valid_ordered_list_start_is_still_spoken(prefix, marker, verbosity, profile):
+    text = prefix + marker + " Item"
+    once = format_for_speech(text, profile=profile, verbosity=verbosity)
+    assert marker[:-1] + ", Item" in once
+    assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
+
+
 def test_spec_example_normal():
     assert plain(NESTED) == ("3 items.\n1, Build\n2, Test\n  2 sub-items.\n  sub-item 1, unit\n"
                              "  sub-item 2, live\n3, Ship")
