@@ -30,6 +30,7 @@ Owner: @jzeng151
 | AC-20 Unfenced tree lines unchanged | Unit test, two passes | | Pending |
 | AC-21 Indented code labeled once, kept byte-identical, also inside lists | Unit test, two passes | | Pending |
 | AC-22 No block syntax exposed by inline rewrites | Unit test, two passes | | Pending |
+| AC-23 Code inside blockquotes protected | Unit test, both profiles, two passes | | Pending |
 
 ## Operational Evidence
 
