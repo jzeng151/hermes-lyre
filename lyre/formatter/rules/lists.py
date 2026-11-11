@@ -74,7 +74,8 @@ def _parse(lines: list[str]) -> list[_List] | None:
             target = stack[-1]
             marker = m.group(2)
             number = marker[:-1] if marker[0].isdigit() else str(len(target.items) + 1)
-            column = m.end() if line[m.end():].strip() else indent + len(marker) + 1
+            # Columns, not characters: a tab after the marker reaches the next tab stop (4).
+            column = len(line[:m.end()].expandtabs(4)) if line[m.end():].strip() else indent + len(marker) + 1
             target.items.append(_Item(number, line[m.end():], column))
         elif not line.strip():
             prev_blank = True
