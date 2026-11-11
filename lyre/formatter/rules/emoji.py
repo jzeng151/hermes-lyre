@@ -12,7 +12,7 @@ import re
 
 from ..model import Options
 from . import register_inline_rule
-from .emphasis import asterisk_delimiter_edges
+from .emphasis import paired_delimiter_edges
 
 # Emoji are matched by presentation, not by whole Unicode blocks, so symbols that share those
 # blocks (music sharps and flats, stars, check marks, crosses, chess and alchemy signs) are
@@ -90,10 +90,13 @@ def _opening_delimiter_before(left: str) -> bool:
     return len(body) < len(left) and (not body or body[-1] in _BEFORE_OPENER)
 
 
-def _closing_delimiter_after(right: str) -> bool:
+def _closing_delimiter_after(right: str, more_runs: bool = False) -> bool:
     """``**`` directly after the emoji, itself before whitespace or line end: it closes emphasis."""
     body = right.lstrip(_DELIMITERS)
-    return len(body) < len(right) and (not body or body[0] in _AFTER_CLOSER)
+    # A gap ending at the next emoji is not the end of the line.
+    return len(body) < len(right) and (
+        (not body and not more_runs) or (bool(body) and body[0] in _AFTER_CLOSER)
+    )
 
 
 def _label(sequence: str, opts: Options) -> str | None:
@@ -105,7 +108,9 @@ def _label(sequence: str, opts: Options) -> str | None:
     return STATUS[base] if opts.latin else sequence
 
 
-def _drop_emptied_wrapper(left: str, right: str, opening: bool, closing: bool) -> tuple[str, str]:
+def _drop_emptied_wrapper(
+    left: str, right: str, opening: bool, closing: bool, more_runs: bool,
+) -> tuple[str, str]:
     """``**🎉**`` with the emoji removed leaves ``****``: drop the emptied delimiter pair too."""
     marks = left[len(left.rstrip(_DELIMITERS)):]
     closing_marks = right[:len(right) - len(right.lstrip(_DELIMITERS))]
@@ -113,50 +118,57 @@ def _drop_emptied_wrapper(left: str, right: str, opening: bool, closing: bool) -
     # the left and closing on the right. ``*one*🎉**two**`` has a closer then an opener: kept.
     if (marks and closing_marks == marks[::-1]
             and (opening or _opening_delimiter_before(left))
-            and (closing or _closing_delimiter_after(right))):
+            and (closing or _closing_delimiter_after(right, more_runs))):
         return left[:-len(marks)], right[len(marks):]
     return left, right
 
 
-def _replace_run(line: str, start: int, end: int, opts: Options, prefix: str) -> tuple[str, str]:
-    """Return (new text for the run including spacing, rest of line)."""
-    labels = [label for m in SEQUENCE_RE.finditer(line, start, end)
+def _replace_run(
+    run: str, left: str, right: str, opts: Options, opening: bool, closing: bool, more_runs: bool,
+) -> tuple[str, str]:
+    """Rewrite a run and its adjacent gaps without copying the remaining line."""
+    labels = [label for m in SEQUENCE_RE.finditer(run)
               if (label := _label(m.group(0), opts))]
-    left, right = line[:start], line[end:]
-    opening = closing = False
-    if left.endswith("*") or right.startswith("*"):
-        # Earlier runs may have consumed the opener, but its pairing context still matters.
-        opening, closing = asterisk_delimiter_edges(prefix + line, len(prefix) + start, len(prefix) + end)
     if not labels:
-        left, right = _drop_emptied_wrapper(left, right, opening, closing)
-        if left != line[:start] or right != line[end:]:
+        before = left, right
+        left, right = _drop_emptied_wrapper(left, right, opening, closing, more_runs)
+        if (left, right) != before:
             opening = closing = False
     left_text, right_text = left.rstrip(" \t"), right.lstrip(" \t")
     if not left.strip():
         left_text = left  # indentation before the first word is kept as written
     body = " ".join(labels)
     tight_left = opening or left_text.endswith(tuple(_NO_SPACE_AFTER)) or _opening_delimiter_before(left)
-    tight_right = closing or right_text.startswith(tuple(_NO_SPACE_BEFORE)) or _closing_delimiter_after(right)
-    gap_left = bool(left.strip()) and bool(body or right_text) and not tight_left
-    gap_right = bool(right_text) and bool(body) and not tight_right
+    tight_right = (closing or right_text.startswith(tuple(_NO_SPACE_BEFORE))
+                   or _closing_delimiter_after(right, more_runs))
+    has_right = bool(right_text) or more_runs
+    gap_left = bool(left.strip()) and bool(body or has_right) and not tight_left
+    gap_right = has_right and bool(body) and not tight_right
     if not body:
         gap_right = False
-        gap_left = gap_left and bool(right_text) and not tight_right
+        gap_left = gap_left and has_right and not tight_right
     return left_text + (" " if gap_left else "") + body + (" " if gap_right else ""), right_text
 
 
 def emoji(text: str, opts: Options) -> str:
     if text.isascii() or opts.emoji_policy == "keep" or not RUN_RE.search(text):
         return text
-    out = ""
-    rest = text
-    while True:
-        m = RUN_RE.search(rest)
-        if not m:
-            break
-        head, rest = _replace_run(rest, m.start(), m.end(), opts, out)
-        out += head
-    out += rest
+    matches = list(RUN_RE.finditer(text))
+    # Keep original offsets even when earlier runs change length or empty a wrapper.
+    openings, closings = paired_delimiter_edges(text)
+    chunks = []
+    left = text[:matches[0].start()]
+    for index, match in enumerate(matches):
+        more_runs = index + 1 < len(matches)
+        next_start = matches[index + 1].start() if more_runs else len(text)
+        right = text[match.end():next_start]
+        head, left = _replace_run(
+            match.group(0), left, right, opts,
+            match.start() in openings, match.end() in closings, more_runs,
+        )
+        chunks.append(head)
+    chunks.append(left)
+    out = "".join(chunks)
     return out if out.strip() else ""
 
 
