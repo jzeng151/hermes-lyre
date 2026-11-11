@@ -200,7 +200,10 @@ def protect_blocks(lines: list[str], stash: Stash) -> list[str]:
             continue
         fence = FENCE_OPEN_RE.match(line)
         if fence and not (fence.group(2)[0] == "`" and "`" in fence.group(3)):
-            end = _fence_end(lines, i, fence.group(2))
+            if list_col is not None and indent_width(line) >= list_col:
+                end = _item_fence_end(lines, i, fence.group(2), list_col)  # bounded by its item
+            else:
+                end = _fence_end(lines, i, fence.group(2))
             _stash_lines(out, lines, i, end, "f", stash)
             i, prev_blank = end + 1, False
             continue
@@ -342,12 +345,16 @@ def _url_token(match: re.Match, stash: Stash) -> str:
     return stash.put("u", url[:end]) + url[end:]
 
 
-def protect_code_spans(lines: list[str], stash: Stash, skip) -> list[str]:
+def protect_code_spans(lines: list[str], stash: Stash, skip, starts_block=lambda line: False,
+                       one_line_block=lambda line: False) -> list[str]:
     """Protect code spans, including spans that cross lines inside one run of text.
 
     Consecutive non-blank lines that *skip* rejects are matched together, so a span opened on
     one line and closed on a later one becomes a single token whose value holds the newlines.
-    Link targets and HTML tags that cross lines are protected the same way.
+    Link targets and HTML tags that cross lines are protected the same way. A run ends at a
+    line that *starts_block* accepts (a heading, list item, quote or rule), and right after a
+    line that *one_line_block* accepts (a heading), because inline content never crosses a
+    block boundary.
     """
     out: list[str] = []
     group: list[str] = []
@@ -368,6 +375,12 @@ def protect_code_spans(lines: list[str], stash: Stash, skip) -> list[str]:
             flush()
             out.append(line)
         else:
+            if starts_block(line):
+                flush()
+            if one_line_block(line):
+                group.append(line)
+                flush()
+                continue
             group.append(line)
     flush()
     return out
