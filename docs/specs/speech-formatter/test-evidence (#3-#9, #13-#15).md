@@ -24,6 +24,10 @@ Owner: @jzeng151
 | AC-14 Survives core WhatsApp plain-output formatter | Round-trip test | | Pending |
 | AC-15 Escapes and inline code stable across passes | Unit test, plain profile | | Pending |
 | AC-16 Braille text unchanged | Unit test | | Pending |
+| AC-17 Display math byte-identical | Unit test, both profiles | | Pending |
+| AC-18 Deep lists stay idempotent | Unit test, two passes | | Pending |
+| AC-19 Emoji-only reply returned unchanged | Unit test | | Pending |
+| AC-20 Unfenced tree lines unchanged | Unit test, two passes | | Pending |
 
 ## Operational Evidence
 

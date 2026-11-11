@@ -14,8 +14,8 @@ Given a final Hermes reply, return text a screen reader reads cleanly, keeping e
 - No summarizing, shortening or reordering of content.
 - No change to code contents, URLs, or any text inside a protected span.
 - No currency, number, date or abbreviation expansion. Screen readers already handle these.
-- No HTML handling. Raw HTML (`<details>`, `<br>`) passes through unchanged.
-- No math rendering. `$$...$$` blocks pass through unchanged.
+- No HTML handling. HTML tags (`<details>`, `<br>`) are protected spans and pass through unchanged; text between tags is prose.
+- No math rendering. Display math (`$$...$$`) is a protected span and passes through byte-identical. Single-dollar inline math is not recognized, because `$10` is far more common in replies.
 - No translation. Inserted words are English only.
 - No I/O, no Hermes imports, no logging inside the formatter.
 
@@ -34,12 +34,13 @@ def format_for_speech(
 
 - Returns a string. Never raises: any internal exception returns `text` unchanged.
 - Returns `text` unchanged when it is empty, over 200,000 bytes in UTF-8, or fails to parse.
+- Returns `text` unchanged when the result would be empty or whitespace-only (for example a reply that is only decorative emoji). The original is a better answer than nothing, and Hermes ignores empty rewrites anyway.
 - Pure: the same input and arguments always give the same output.
 
 ## Processing model
 
 1. **Size gate.** Over the byte cap: return input.
-2. **Protect spans.** Fenced code blocks (``` and ~~~, with or without an info string), indented code blocks (4 spaces or a tab, not inside a list item), inline code, backslash escapes (`\` followed by an ASCII punctuation character), bare URLs and link targets are replaced by placeholders. Nothing inside a placeholder is ever modified.
+2. **Protect spans.** In this order: fenced code blocks (``` and ~~~, with or without an info string, at any indentation, so a fence nested in list output is still a fence on the next pass), display math (`$$...$$`, on one line or across lines), indented code blocks (4 spaces or a tab, not inside a list item), inline code, backslash escapes (`\` followed by an ASCII punctuation character), HTML tags, bare URLs and link targets are replaced by placeholders. Nothing inside a placeholder is ever modified. Lyre's own output never starts a line with 4 or more spaces outside a protected span, so a second pass never finds new indented code.
 3. **Block pass.** Lines are grouped into blocks: table, list, heading, rule, blockquote, paragraph. One linear pass; no backtracking regexes.
 4. **Rules.** Each block is handed to the rule that owns it. Inline rules (emphasis, emoji, links) run on paragraph, list item, heading and table cell text.
 5. **Restore spans**, applying the code and link rules to the placeholders' surroundings.
@@ -87,7 +88,7 @@ Each rule lists the output at `normal` verbosity, then the differences at `brief
 
 - A line that is only `---`, `***`, `___` (thematic break) becomes a blank line.
 - A line made only of box-drawing characters (U+2500 to U+257F), block elements (U+2580 to U+259F) and spaces is removed.
-- Box-drawing characters inside a line of text are each replaced by one space, so the indentation of tree output (`├── src/`) and its nesting depth are kept.
+- A line that mixes box-drawing characters with text (unfenced tree output such as `│   ├── src/`) is left unchanged. Replacing the characters with spaces would indent the line 4 or more spaces, which a second pass reads as code; dropping them would lose the nesting. Whether screen readers speak them is Q6.
 - Braille Patterns (U+2800 to U+28FF) are never removed or changed. Terminal spinners use them, but so does real Braille text, and the two cannot be told apart; spinners rarely appear in a final reply.
 - Applies to both profiles. Never inside protected spans.
 
@@ -141,9 +142,10 @@ Output (`normal`):
 
 - Ordered lists keep their source numbers: `5. Five` -> `5, Five`.
 - Numbers are followed by a comma, never a period, so markdown clients do not turn the output back into a list.
-- Nested lists indent by 2 spaces per level (never 4, which some formatters treat as code).
+- Nesting is spoken, not shown by depth of indentation: every nested line is indented exactly 2 spaces whatever its level, because 4 spaces would be read as indented code on the next pass and by markdown clients. Level 2 items are `sub-item N`; level 3 and deeper are `level 3 item N` (and `2 level 3 items.` for the count line).
+- A list item's continuation lines are re-indented to the item's own output indent (0 or 2 spaces); fenced code inside an item keeps its own lines unchanged.
 - Task lists: `- [x] Done` -> `1, (done) Done`; `- [ ] Open` -> `1, (not done) Open`.
-- A list item's continuation lines and inline code are kept.
+- A list item's inline code is kept.
 - A single-item list still gets `1 item.`.
 - `brief`: no count lines.
 - `full`: count lines say `List, 3 items.` and `Sub-list, 2 items.`; the list ends with `End of list.`.
@@ -257,6 +259,10 @@ End of code.
 - [ ] **AC-14** Given output from Lyre run through core's WhatsApp plain-output formatter, then code contents and status words are unchanged.
 - [ ] **AC-15** Given `\*literal\*` and `` `**literal**` `` in prose, when formatted twice on the `plain` profile, then both are unchanged after each pass.
 - [ ] **AC-16** Given a line of Braille Patterns such as `⠓⠑⠇⠇⠕`, alone or inside prose, when formatted, then it is unchanged.
+- [ ] **AC-17** Given display math containing `\text{**literal**}` and an emoji, when formatted on either profile, then the `$$...$$` block is byte-identical.
+- [ ] **AC-18** Given a list nested three levels deep with a fenced code block in a level 3 item, when formatted twice, then the output is identical, no line outside the fence starts with 4 or more spaces, and no code labels are added on the second pass.
+- [ ] **AC-19** Given a reply that is only `🎉`, or only decorative emoji and whitespace, then the output is the input unchanged.
+- [ ] **AC-20** Given unfenced tree output with box-drawing characters, when formatted twice, then those lines are unchanged.
 
 ## Edge Cases
 
@@ -277,6 +283,7 @@ End of code.
 - [ ] **Q3** Is the `markdown` platform list in the design doc correct for Teams, Mattermost and Google Chat? Checked against each adapter's `format_message` in #13.
 - [ ] **Q4** Are the table pass-through limits (50 rows, 10 columns, 500 characters) right? Tuned with the golden corpus in #15.
 - [ ] **Q5** Do VoiceOver and NVDA at their default punctuation levels announce the backticks around inline code or the backslash in escapes? If they do, choose another boundary that a second pass can recognize, and update R1, R8, AC-5, AC-6 and AC-15 together. Decided by the baseline test in #2.
+- [ ] **Q6** Do VoiceOver and NVDA speak box-drawing characters in unfenced tree lines? If they do, find a representation that keeps nesting and stays idempotent. Decided by the baseline test in #2.
 
 ## Output / Deliverables
 

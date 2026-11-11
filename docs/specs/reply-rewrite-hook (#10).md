@@ -66,7 +66,7 @@ Platform matching is case-insensitive. Unknown values are treated as messaging b
 2. `enabled` setting is false: return `None`.
 3. The group's setting is false: return `None`.
 4. Call `format_for_speech(response_text, profile=..., verbosity=..., emoji_policy=..., table_style=...)` with settings from [settings.md](settings%20%28%2311%29.md).
-5. Result equals `response_text`: return `None`. Otherwise return the result.
+5. Result equals `response_text`, or is empty or whitespace-only: return `None`. Otherwise return the result. (The formatter already returns its input instead of an empty result; this check keeps the hook's "never an empty string" contract even if it does not.)
 
 Settings are read on every call through `ctx.get_config`, so changes made by `/a11y` or the Desktop form apply to the next reply.
 
@@ -103,6 +103,7 @@ Settings are read on every call through `ctx.get_config`, so changes made by `/a
 - [ ] **AC-8** Given a 20 KB reply, when the hook runs, then it returns in under 50 ms excluding the settings read.
 - [ ] **AC-9** Given a 9-row table reply on Telegram, when the session is resumed and the user asks for the value in row 9, then the model answers correctly from the stored rewrite. (Live test, [release-evidence.md](release-evidence%20%28%2316%2C%20%2317%2C%20%2319%29.md).)
 - [ ] **AC-10** Given a 5-turn conversation with Lyre on, when replies are compared with Lyre off, then no turn loses a table cell, URL or code line.
+- [ ] **AC-11** Given Lyre is on and a reply that is only `🎉`, or a formatter stub that returns `""` or whitespace, then the hook returns `None` and the original reply is delivered.
 
 ## Edge Cases
 
@@ -116,7 +117,7 @@ Settings are read on every call through `ctx.get_config`, so changes made by `/a
 ## Test Checklist
 
 - [ ] Happy path per surface group with a fake `ctx` (AC-3, AC-7).
-- [ ] Off paths (AC-1, AC-2, AC-4, AC-6).
+- [ ] Off paths (AC-1, AC-2, AC-4, AC-6, AC-11).
 - [ ] Error path with a formatter forced to raise; log captured and checked for absence of reply text (AC-5).
 - [ ] Timing (AC-8).
 - [ ] Live runs for AC-9 and AC-10 in [release-evidence.md](release-evidence%20%28%2316%2C%20%2317%2C%20%2319%29.md).
