@@ -52,7 +52,7 @@ Arguments are case-insensitive and trimmed. Extra words after a valid subcommand
 
 Usage reply: `Usage: /a11y on, /a11y off, /a11y status, or /a11y verbosity followed by brief, normal or full.`
 
-`/a11y on` turns on the caller's group as well as the master switch, so a Desktop user can opt in from Desktop without opening settings. `/a11y off` turns off the master switch only, leaving the group choices for next time.
+`/a11y on` turns on the caller's group as well as the master switch, so a Desktop user can opt in from Desktop without opening settings. It writes the group first (skipped when already on) and `enabled` last, so a failure never leaves Lyre on without the caller's surface: if the group write fails nothing has changed, and if the `enabled` write fails Lyre is still off, and a group switched on while Lyre is off changes no reply. `/a11y off` turns off the master switch only, leaving the group choices for next time.
 
 ### Status replies
 
@@ -69,7 +69,8 @@ When `source` is present and `source.chat_type` is not a direct message, `/a11y 
 
 | Condition | Reply | Log |
 | --- | --- | --- |
-| `ctx.set_config` raises | `Lyre could not save that setting. Nothing changed.` | One `WARNING` with the exception type |
+| `ctx.set_config` raises on `/a11y off` or `verbosity` (one write) | `Lyre could not save that setting. Nothing changed.` | One `WARNING` with the exception type |
+| `ctx.set_config` raises on `/a11y on` | `Lyre could not be turned on. Lyre is still off.` (or `Lyre is still on.` if it already was) | One `WARNING` with the exception type and which key failed |
 | Invalid verbosity value | `Verbosity must be brief, normal or full.` | none |
 | Surface unknown (`subagent`, empty after fallback) | Apply the write, reply without the surface: `Lyre is on.` | none |
 
@@ -85,6 +86,7 @@ When `source` is present and `source.chat_type` is not a direct message, `/a11y 
 - [ ] **AC-8** Given Hermes restarts, when the user sends `/a11y status`, then the state from before the restart is reported.
 - [ ] **AC-9** Given every reply text in this spec, then none contains `*`, `_`, `#`, `|`, a backtick or an emoji.
 - [ ] **AC-10** Given the classic CLI, the TUI and a gateway chat, when `/a11y status` is sent, then each gets a reply.
+- [ ] **AC-11** Given `/a11y on` while Lyre is off and the second write (`enabled`) fails, then `enabled` is still false, the reply says Lyre is still off, and the next reply on every surface is unchanged.
 
 ## Edge Cases
 
@@ -101,7 +103,8 @@ When `source` is present and `source.chat_type` is not a direct message, `/a11y 
 
 ## Test Checklist
 
-- [ ] Each subcommand with a fake `ctx` recording `set_config` calls (AC-1 to AC-6).
+- [ ] Each subcommand with a fake `ctx` recording `set_config` calls (AC-1 to AC-6), including write order for `/a11y on`.
+- [ ] Fake `ctx` whose `set_config` fails on the first or second key (AC-11).
 - [ ] Shared-chat notice with a fake `source` (AC-7).
 - [ ] Reply text lint for spoken symbols (AC-9).
 - [ ] Live: CLI, TUI, Telegram, restart persistence (AC-8, AC-10).

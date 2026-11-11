@@ -86,8 +86,9 @@ Each rule lists the output at `normal` verbosity, then the differences at `brief
 ### R3. Rules, box drawing and decoration
 
 - A line that is only `---`, `***`, `___` (thematic break) becomes a blank line.
-- A line made only of box-drawing characters (U+2500 to U+257F), block elements (U+2580 to U+259F), braille spinner characters (U+2800 to U+28FF) and spaces is removed.
-- Box-drawing characters inside a line of text are replaced by a single space.
+- A line made only of box-drawing characters (U+2500 to U+257F), block elements (U+2580 to U+259F) and spaces is removed.
+- Box-drawing characters inside a line of text are each replaced by one space, so the indentation of tree output (`├── src/`) and its nesting depth are kept.
+- Braille Patterns (U+2800 to U+28FF) are never removed or changed. Terminal spinners use them, but so does real Braille text, and the two cannot be told apart; spinners rarely appear in a final reply.
 - Applies to both profiles. Never inside protected spans.
 
 ### R4. Emoji
@@ -247,7 +248,6 @@ End of code.
 - [ ] **AC-5** Given any input, when formatted twice with the same arguments, then the second output equals the first.
 - [ ] **AC-6** Given code blocks containing `**`, `|`, `#` and emoji, when formatted, then the code contents are byte-identical.
 - [ ] **AC-7** Given escaped pipes outside tables, backslash escapes, inline code, indented code and an unclosed fence, when formatted, then those spans are unchanged.
-- [ ] **AC-15** Given `\*literal\*` and `` `**literal**` `` in prose, when formatted twice on the `plain` profile, then both are unchanged after each pass.
 - [ ] **AC-8** Given input over 200,000 bytes, when formatted, then the output is the input object unchanged and the call returns in under 5 ms.
 - [ ] **AC-9** Given a 20 KB reply mixing every rule, when formatted, then it finishes in under 50 ms on CI hardware.
 - [ ] **AC-10** Given a mostly Latin-script reply that the formatter transformed (not returned unchanged under AC-8 or AC-13), then in every transformed region the output contains no `|---` and no emoji (unless `emoji_policy: keep`); and on the `plain` profile also no paired `**` and no line starting with `#`. Transformed regions exclude protected spans and tables passed through under AC-2 or `table_style: unchanged`. Non-Latin replies are exempt from the emoji clause, because Script detection keeps their status emoji.
@@ -255,6 +255,8 @@ End of code.
 - [ ] **AC-12** Given the same reply at `brief`, `normal` and `full`, then all three contain every cell, URL and code line.
 - [ ] **AC-13** Given an internal exception in any rule, when formatted, then the input is returned unchanged.
 - [ ] **AC-14** Given output from Lyre run through core's WhatsApp plain-output formatter, then code contents and status words are unchanged.
+- [ ] **AC-15** Given `\*literal\*` and `` `**literal**` `` in prose, when formatted twice on the `plain` profile, then both are unchanged after each pass.
+- [ ] **AC-16** Given a line of Braille Patterns such as `⠓⠑⠇⠇⠕`, alone or inside prose, when formatted, then it is unchanged.
 
 ## Edge Cases
 

@@ -23,6 +23,7 @@ Owner: @jzeng151
 | AC-13 Exception returns input | Unit test with a rule forced to raise | | Pending |
 | AC-14 Survives core WhatsApp plain-output formatter | Round-trip test | | Pending |
 | AC-15 Escapes and inline code stable across passes | Unit test, plain profile | | Pending |
+| AC-16 Braille text unchanged | Unit test | | Pending |
 
 ## Operational Evidence
 
