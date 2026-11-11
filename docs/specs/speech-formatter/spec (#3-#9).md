@@ -41,7 +41,7 @@ def format_for_speech(
 
 1. **Size gate.** Over the byte cap: return input.
 2. **Protect spans.** In this order: fenced code blocks (``` and ~~~, with or without an info string, at any indentation, so a fence nested in list output is still a fence on the next pass), display math (`$$...$$`, on one line or across lines), indented code blocks (after a blank line: 4 spaces or a tab at the top level, or the list item's content column plus 4 inside a list item), inline code, backslash escapes (`\` followed by an ASCII punctuation character), HTML tags, bare URLs and link targets are replaced by placeholders. Nothing inside a placeholder is ever modified. Lyre's own output never starts a line with 4 or more spaces outside a protected span, so a second pass never finds new indented code.
-3. **Block pass.** Lines are grouped into blocks: table, list, heading, rule, blockquote, paragraph. One linear pass; no backtracking regexes. A blockquote is a container: its `>` markers are removed and its contents go through steps 2 to 7 on their own, span protection included, so fenced or indented code inside a quote is protected and `> # Title` is a heading inside the quote. Quotes nested more than 10 deep are left unchanged, which keeps the work linear in practice.
+3. **Block pass.** Lines are grouped into blocks: table, list, heading, rule, blockquote, paragraph. One linear pass; no backtracking regexes. A blockquote is a container: its `>` markers are removed and its contents go through steps 2 to 7 on their own, span protection included, so fenced or indented code inside a quote is protected and `> # Title` is a heading inside the quote. If any quote is nested more than 10 deep, the outermost quote holding it is left unchanged, which keeps the work linear in practice and stays idempotent.
 4. **Rules.** Each block is handed to the rule that owns it. Inline rules (emphasis, emoji, links) run on paragraph, list item, heading and table cell text.
 5. **Restore spans**, applying the code and link rules to the placeholders' surroundings.
 6. **Guard against exposed block syntax.** If any rule, inline or block (heading, quote, table, list), produces an output line that starts, after its indentation, with block syntax the input line it came from did not start with (a list marker `-`, `*`, `+`, `N.` or `N)`; `#`; `>`; `|`; a thematic break; a code fence; or a Setext underline, a line of only `=` or only `-` characters, which is block syntax only because of the non-blank line above it), that line is restored to its input text. Lyre's own fixed forms (`N, item`, count lines, labels, `Row N:`) never start with block syntax, so they are unaffected. Inline rules are guarded line by line; a block rule's output is restored as a whole block if any line exposes syntax. Quote output (R9) is exempt, because its contents already passed through the guard as a container (ADR 0003). Examples: `[- Build](https://x.test)`, `🎉 1. Done`, `**# Title**` and the heading `# - Build` stay as written. The line keeps some noise, but no structure is invented and the second pass sees the same line and makes the same decision.
@@ -110,6 +110,8 @@ Each rule lists the output at `normal` verbosity, then the differences at `brief
 | any other emoji | removed |
 
 - Whole sequences are one emoji: variation selectors (U+FE0E, U+FE0F), skin tones (U+1F3FB to U+1F3FF), zero-width joiner sequences, keycaps, tag flags. No orphan code point is left behind.
+- An emoji is a character that displays as emoji by default, or a text-default character followed by U+FE0F, or a status symbol from the table. Symbols that share Unicode blocks with emoji but have no emoji presentation (`♯`, `♭`, `★`, `✓`) are never removed (ADR 0004).
+- Spacing next to emphasis: an emphasis delimiter touching the emoji stays touching the text (`**✅ Done**` -> `**(done) Done**`).
 - A run of emoji becomes its status words joined by single spaces: `✅ 🎉 ⚠️` -> `(done) (warning)`.
 - Spacing is normalized only where an emoji was removed: `Hello 🎉 world` -> `Hello world`.
 - A line that becomes empty after removal is removed.
@@ -243,6 +245,7 @@ End of code.
 - `> text` -> `text` (the marker is removed; nested `> >` too). The contents are processed as a container (processing step 3) on both profiles; on the `markdown` profile the markers are then put back on every output line of the quote, so only the quote's contents change.
 - `full`: a `Quote:` line before the quote's contents and an `End of quote.` line after them (plain profile only). The announcement is on its own line, never prefixed to the first line, so labels inside the quote (such as an R7 code label) stay recognizable on the next pass.
 - Removing the markers is plain only; container processing of the contents runs on both profiles.
+- When text sits directly above the quote, the unwrapped contents start after a blank line, so they stay a separate block on the next pass (a quoted indented code block stays code). The quote's contents keep their own spacing; only the outer pass trims nothing inside them.
 
 ## Acceptance Criteria
 

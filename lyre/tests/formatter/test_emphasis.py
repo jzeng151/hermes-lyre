@@ -80,8 +80,43 @@ def test_quote_markers_removed_on_plain():
     assert plain("> quoted **x**\n>\n> more") == "quoted x\n\nmore"
 
 
+def test_multiline_setext_heading_keeps_every_line():
+    assert plain("First line\nSecond line\n===") == "First line Second line."
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("**bold *italic* text**", "bold italic text"),
+    ("__bold _italic_ text__", "bold italic text"),
+    ("*a **b** c*", "a b c"),
+])
+def test_nested_emphasis_resolves_in_one_pass(text, expected):
+    assert plain(text) == expected
+
+
+def test_quoted_indented_code_stays_code():
+    once = plain("before\n>\n>     **code**")
+    assert once == "before\n\n    **code**"
+    assert plain(once) == once
+
+
+def test_quoted_code_keeps_trailing_spaces():
+    assert plain("> ```py\n> x = 1  \n> ```") == "```py\nx = 1  \n```"
+
+
+def test_over_depth_quote_left_whole():
+    text = "> " * 11 + "**x**"
+    assert plain(text) == text
+
+
+def test_non_latin_reply_with_quoted_english_code_gets_no_english():
+    text = '> ```py\n> print("this is an English code example with many letters")\n> ```\n\n这是中文回复，~~删除~~。'
+    for verbosity in ("normal", "full"):
+        out = plain(text, verbosity=verbosity)
+        assert "(removed:" not in out and "Quote:" not in out
+
+
 def test_nested_quote_plain_and_full():
-    assert plain("> a\n> > b") == "a\nb"
+    assert plain("> a\n> > b") == "a\n\nb"
     assert plain("> a", verbosity="full") == "Quote:\na\nEnd of quote."
 
 
@@ -98,6 +133,7 @@ def test_quoted_code_survives_marker_removal():
 CASES = [
     "**bold** _it_ ~~s~~", "Intro\n# Results\nText", "Setext\n======", "> q **x**\n> > n",
     "> ```py\n> x = '**y**'\n> ```", "# - Build", "Title\n**===**", "> # Quoted title",
+    "First line\nSecond line\n===", "**bold *italic* text**", "before\n>\n>     **code**", "> " * 11 + "**x**",
 ]
 
 

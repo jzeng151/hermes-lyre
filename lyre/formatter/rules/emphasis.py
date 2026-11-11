@@ -27,8 +27,14 @@ _STRIKE = re.compile(r"~~(?=\S)([^~\n]+?)(?<=\S)~~")
 
 def emphasis(text: str, opts: Options) -> str:
     if opts.profile == "plain" and ("*" in text or "_" in text):
-        for pattern in _EMPHASIS:
-            text = pattern.sub(r"\1", text)
+        # Nested emphasis (``**bold *italic* text**``) resolves inside out, so repeat until
+        # stable; each round removes at least one marker pair, and the bound keeps it cheap.
+        for _ in range(4):
+            before = text
+            for pattern in _EMPHASIS:
+                text = pattern.sub(r"\1", text)
+            if text == before:
+                break
     if opts.latin and "~~" in text:
         text = _STRIKE.sub(r"(removed: \1)", text)
     return text

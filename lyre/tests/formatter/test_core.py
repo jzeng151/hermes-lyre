@@ -283,3 +283,38 @@ def test_guard_catches_lone_list_marker(temp_rules):
     add_inline("strip", lambda t, o: t.replace("**", ""))
     text = "Before\n\n**-**\n\nAfter"
     assert format_for_speech(text, profile="plain") is text
+
+
+def test_code_span_after_escaped_backslashes_is_protected(temp_rules):
+    add_inline, _ = temp_rules
+    add_inline("strip", lambda t, o: t.replace("**", ""))
+    text = "two \\\\`**code**` and \\`**not code**`"
+    assert format_for_speech(text, profile="plain") == "two \\\\`**code**` and \\`not code`"
+
+
+def test_html_tag_with_quoted_angle_bracket_is_protected(temp_rules):
+    add_inline, _ = temp_rules
+    add_inline("strip", lambda t, o: t.replace("**", ""))
+    text = '<span title="a > **literal**">**prose**</span>'
+    assert format_for_speech(text, profile="plain") == '<span title="a > **literal**">prose</span>'
+
+
+def test_malformed_separator_is_linear():
+    text = "a|b\n" + " " * 8000 + "-|x"
+    start = time.perf_counter()
+    assert format_for_speech(text, profile="plain") is text
+    assert time.perf_counter() - start < 0.5
+
+
+def test_heading_after_list_resets_indented_code_threshold(temp_rules):
+    add_inline, _ = temp_rules
+    add_inline("strip", lambda t, o: t.replace("**", ""))
+    text = "- item\n# Heading\n\n    **literal**"
+    assert format_for_speech(text, profile="plain") is text
+
+
+def test_guard_catches_table_exposed_without_leading_pipe(temp_rules):
+    add_inline, _ = temp_rules
+    add_inline("strip", lambda t, o: t.replace("**", ""))
+    text = "a|b\n**---|---**"
+    assert format_for_speech(text, profile="plain") is text

@@ -20,7 +20,7 @@ BLOCK_KINDS = {"f": "code", "c": "code", "m": "math"}
 FENCE_OPEN_RE = re.compile(r"^([ \t]*)(`{3,}|~{3,})(.*)$")
 LIST_ITEM_RE = re.compile(r"^([ \t]*)([-*+]|\d{1,9}[.)])([ \t]+|$)")
 ESCAPE_RE = re.compile(r"\\[!-/:-@\[-`{-~]")
-HTML_TAG_RE = re.compile(r"</?[A-Za-z][A-Za-z0-9-]*(?:\s[^<>\n]*)?/?>")
+HTML_TAG_RE = re.compile(r"""</?[A-Za-z][A-Za-z0-9-]*(?:\s(?:[^<>"'\n]|"[^"\n]*"|'[^'\n]*')*)?/?>""")
 INLINE_MATH_RE = re.compile(r"\$\$[^$\n]+\$\$")
 URL_RE = re.compile("(?:https?|ftp)://[^\\s<>\ue000\ue001]+")
 URL_TRAILING = ".,;:!?'\"*_"
@@ -128,13 +128,18 @@ def _code_threshold(line: str, prev_blank: bool, list_col: int | None) -> int | 
     return threshold if indent_width(line) >= threshold else None
 
 
+_ENDS_LIST_RE = re.compile(r"^ {0,3}(?:#{1,6}(?:[ \t]|$)|>|(?:[-*_][ \t]*){3,}$)")
+
+
 def _track_list(line: str, prev_blank: bool, list_col: int | None) -> int | None:
     col = _list_content_column(line)
     if col is not None:
         return col
-    if list_col is not None and line.strip() and prev_blank and indent_width(line) < list_col:
-        return None  # a paragraph after a blank line, outdented past the item, ends the list
-    return list_col
+    if list_col is None or not line.strip() or indent_width(line) >= list_col:
+        return list_col
+    # Outdented text after a blank line, or a heading, quote or rule, ends the list; outdented
+    # text right after an item is a lazy continuation and keeps it.
+    return None if prev_blank or _ENDS_LIST_RE.match(line) else list_col
 
 
 def _item_fence(line: str) -> tuple[int, re.Match] | None:
@@ -191,6 +196,14 @@ def protect_blocks(lines: list[str], stash: Stash) -> list[str]:
     return out
 
 
+def _escaped(line: str, index: int) -> bool:
+    """True when an odd run of backslashes precedes *index* (an even run escapes itself)."""
+    count = 0
+    while index - count > 0 and line[index - count - 1] == "\\":
+        count += 1
+    return count % 2 == 1
+
+
 def _protect_code_spans(line: str, stash: Stash) -> str:
     runs: list[tuple[int, int]] = []
     i = 0
@@ -211,7 +224,7 @@ def _protect_code_spans(line: str, stash: Stash) -> str:
     out, pos, idx = [], 0, 0
     while idx < len(runs):
         start, size = runs[idx]
-        if start < pos or (start > 0 and line[start - 1] == "\\"):
+        if start < pos or _escaped(line, start):
             idx += 1
             continue
         same = by_len[size]
