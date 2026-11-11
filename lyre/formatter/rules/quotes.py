@@ -22,7 +22,7 @@ def blockquote(block: Block, opts: Options, inline: InlineFn) -> list[str] | Non
     while inner and not inner[-1].strip():
         inner.pop()
     if not inner:
-        return []
+        return [""]  # a blank line keeps the blocks around the empty quote apart
     if opts.verbosity == "full" and opts.latin:
         # Indented code needs a blank line above it to stay code on the next pass.
         gap = [""] if inner[0][:4] == "    " or inner[0].startswith("\t") else []
@@ -39,10 +39,16 @@ def _keep_markers(lines: list[str]) -> bool:
     """True when removing the markers would change how the rest of the reply parses.
 
     An unclosed fence or ``$$`` would swallow what follows, and a list marker (one the list rule
-    did not speak) would carry list context into the next block, such as indented code.
+    did not speak) would carry list context into the next block, such as indented code. Indented
+    code is only code relative to its context: a list earlier in the reply, even after blank
+    lines, would take it over as item text, so a quote holding indented code keeps its markers.
     """
-    fence, math = None, False
+    fence, math, prev_blank = None, False, True
     for line in lines:
+        indented = line.startswith(("    ", "\t")) and bool(line.strip())
+        if fence is None and not math and indented and prev_blank:
+            return True
+        prev_blank = not line.strip()
         body = line.strip()
         if fence is not None:
             if len(body) >= len(fence) and body == fence[0] * len(body):
