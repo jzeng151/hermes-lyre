@@ -152,3 +152,18 @@ def test_emphasis_delimiters_beside_punctuation(text, plain_out, markdown_out):
 ])
 def test_supplementary_text_symbols(text, expected):
     assert format_for_speech(text, profile="plain") == expected
+
+
+@pytest.mark.parametrize("text,kw,expected", [
+    ("Hello **🎉** world", {}, "Hello world"),
+    ("Hello **✅** world", {"emoji_policy": "remove"}, "Hello world"),
+    ("Hello *🎉*.", {}, "Hello."),
+    ("Hello **✅** world", {}, "Hello (done) world"),
+])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_emptied_emphasis_wrapper_is_removed(text, kw, expected, profile):
+    out = format_for_speech(text, profile=profile, **kw)
+    if profile == "markdown" and "(done)" in expected:
+        expected = "Hello **(done)** world"
+    assert out == expected
+    assert format_for_speech(out, profile=profile, **kw) == out
