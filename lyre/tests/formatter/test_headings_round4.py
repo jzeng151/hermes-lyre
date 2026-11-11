@@ -23,9 +23,10 @@ def test_long_strikethrough_runs_are_not_partially_rewritten(profile, verbosity,
 def test_link_targets_do_not_block_heading_rewrite(profile, verbosity, target, setext):
     body = f"**See** [docs]({target})"
     text = body + "\n===" if setext else "# " + body
-    expected = text
+    spoken = f"docs, link: {target}"
+    expected = text.replace(f"[docs]({target})", spoken)
     if profile == "plain":
-        expected = f"See [docs]({target})."
+        expected = f"See {spoken}."
         if verbosity == "full":
             expected = "Heading: " + expected
     once = format_for_speech(text, profile=profile, verbosity=verbosity)
