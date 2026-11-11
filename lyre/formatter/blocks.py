@@ -88,6 +88,7 @@ def _item_column(line: str, default: int) -> int:
 
 def _list_end(lines: list[str], i: int) -> int:
     j, column = i + 1, _item_column(lines[i], 2)
+    owner_indent = indent_width(lines[i])
     while j < len(lines):
         line = lines[j]
         if not line.strip():
@@ -100,7 +101,10 @@ def _list_end(lines: list[str], i: int) -> int:
             break
         if is_thematic_break(line) and indent_width(line) < column:
             break  # ``* * *`` looks like an item but is a break; left of the item's text it ends the list
-        column = _item_column(line, column)
+        if LIST_ITEM_RE.match(line) and indent_width(line) <= owner_indent:
+            # Nested items cannot replace the outer owner's continuation column.
+            owner_indent = indent_width(line)
+            column = _item_column(line, column)
         if not LIST_ITEM_RE.match(line) and indent_width(line) < column and starts_block(line):
             break  # a heading or quote left of the item's text is outside the list
         j += 1
