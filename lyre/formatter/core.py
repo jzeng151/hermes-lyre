@@ -174,7 +174,7 @@ def _process(text: str, opts: Options, depth: int) -> str:
 
 def _before_indented_code(block: Block) -> bool:
     following = block.meta.get("next_text")
-    return following is not None and is_block_token_line(following) and following.strip()[1] == "c"
+    return following is not None and is_block_token_line(following) and following.strip()[1] in ("c", "f")
 
 
 def _nearest_text(blocks: list[Block]) -> None:
