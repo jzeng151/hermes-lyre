@@ -40,7 +40,8 @@ def _kind(marker: str) -> str:
 
 def _new_list(stack: list[_List], roots: list[_List], level: int, indent: int, kind: str) -> _List:
     """Open a list at *level*: a sibling after the list it replaces, or a child of the open item."""
-    lst = _List(level, indent, kind, indent if level == 1 else stack[-1].items[-1].column)
+    # A top-level list belongs to the reply itself (column 0); its markers may sit 0 to 3 spaces in.
+    lst = _List(level, indent, kind, 0 if level == 1 else stack[-1].items[-1].column)
     if level == 1:
         roots.append(lst)
     else:
