@@ -152,8 +152,10 @@ def _process(text: str, opts: Options, depth: int) -> str:
         else:
             # Only lines a rule actually changed lose trailing spaces (a Markdown hard break
             # on an untouched line stays).
+            # A quote's contents were normalized by their own pass and may hold restored code.
             originals = set(block.lines)
-            entries.extend((line if line in originals else line.rstrip(" \t"), line not in originals)
+            trim = block.kind != "blockquote"
+            entries.extend((line.rstrip(" \t") if trim and line not in originals else line, line not in originals)
                            for line in out)
     final: list[str] = []
     for line in _normalize(entries):

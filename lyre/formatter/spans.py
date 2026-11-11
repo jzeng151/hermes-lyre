@@ -287,12 +287,17 @@ def _protect_code_spans(line: str, stash: Stash) -> str:
     return "".join(out)
 
 
+MAX_UNMATCHED_TARGETS = 32
+
+
 def _target_end(line: str, k: int) -> int | None:
     """Index just past the ``)`` that closes a link target starting at *k*, or None.
 
     An angle-bracket destination and a quoted title are units, so parentheses inside them do
     not count; a backslash escapes the next character.
     """
+    while k < len(line) and line[k] in " \t\n":
+        k += 1  # optional whitespace before the destination (kept in the stashed text)
     if line.startswith("<", k):
         close = line.find(">", k)
         if close != -1:
@@ -316,13 +321,20 @@ def _target_end(line: str, k: int) -> int | None:
 def _protect_link_targets(line: str, stash: Stash, multiline_only: bool = False) -> str:
     """Stash each link target. With *multiline_only*, only targets that cross one or two line
     breaks (CommonMark allows one before the destination and one before the title)."""
-    out, pos = [], 0
+    out, pos, unmatched = [], 0, 0
     while True:
         j = line.find("](", pos)
         if j < 0:
             break
         k = _target_end(line, j + 2)
         if k is None:
+            unmatched += 1
+            if unmatched > MAX_UNMATCHED_TARGETS:
+                # Each failed search scans to the end of the line; past this many, protect the
+                # rest of the line as written instead, which keeps the work linear and no
+                # destination after this point can change.
+                out.append(stash.put("t", line[pos:]))
+                return "".join(out)
             out.append(line[pos:j + 2])  # an unmatched opener: keep looking for later links
             pos = j + 2
             continue
@@ -396,14 +408,17 @@ def protect_code_spans(lines: list[str], stash: Stash, skip, starts_block=lambda
     return out
 
 
-def _sub_outside_urls(pattern: re.Pattern, kind: str, line: str, stash: Stash) -> str:
-    """Stash *pattern* matches, except those starting inside a bare URL (URLs are stashed whole later)."""
+def _sub_outside_urls(pattern: re.Pattern, kind: str, line: str, stash: Stash, skip=None) -> str:
+    """Stash *pattern* matches, except those starting inside a bare URL (URLs are stashed whole later)
+    and those *skip* rejects."""
     if "://" not in line:
-        return pattern.sub(lambda m: stash.put(kind, m.group(0)), line)
+        return pattern.sub(lambda m: m.group(0) if skip and skip(m) else stash.put(kind, m.group(0)), line)
     starts = [m.span() for m in URL_RE.finditer(line)]
     ends = [end for _, end in starts]
 
     def put(m: re.Match) -> str:
+        if skip and skip(m):
+            return m.group(0)
         i = bisect.bisect_right(ends, m.start())
         if i < len(starts) and starts[i][0] <= m.start():
             return m.group(0)
@@ -418,10 +433,12 @@ def protect_inline(line: str, stash: Stash) -> str:
         line = _protect_code_spans(line, stash)
     if "$$" in line:
         line = _sub_outside_urls(INLINE_MATH_RE, "n", line, stash)
+    if "<" in line:
+        # Tags before escapes: a backslash inside an attribute does not escape its closing quote.
+        # An escaped ``\<`` is not a tag.
+        line = _sub_outside_urls(HTML_TAG_RE, "h", line, stash, skip=lambda m: _escaped(m.string, m.start()))
     if "\\" in line:
         line = _sub_outside_urls(ESCAPE_RE, "e", line, stash)
-    if "<" in line:
-        line = _sub_outside_urls(HTML_TAG_RE, "h", line, stash)
     if "](" in line:
         line = _protect_link_targets(line, stash)
     if "://" in line:
