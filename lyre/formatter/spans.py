@@ -38,6 +38,11 @@ class Stash:
         self.kinds.append(kind)
         return f"{OPEN}{kind}{len(self.values) - 1}{CLOSE}"
 
+    def value_of(self, token: str) -> str | None:
+        """Original text of one inline token, for rules that must read a protected span."""
+        m = TOKEN_RE.fullmatch(token)
+        return self.values[int(m.group(2))] if m else None
+
     def restore(self, line: str) -> list[str]:
         """Return the original line(s) for one output line."""
         whole = BLOCK_TOKEN_RE.match(line)

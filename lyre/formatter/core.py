@@ -129,6 +129,7 @@ def _process(text: str, opts: Options, depth: int) -> str:
     for i, block in enumerate(blocks):
         block.meta["prev"] = blocks[i - 1].lines[-1] if i else None
         block.meta["next"] = blocks[i + 1].lines[0] if i + 1 < len(blocks) else None
+        block.meta["span"] = stash.value_of
     for block in blocks:
         out = _render(block, opts, depth)
         if out is None:
