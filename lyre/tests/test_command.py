@@ -38,6 +38,9 @@ class Ctx:
     def register_command(self, name, handler, **kwargs) -> None:
         self.commands[name] = (handler, kwargs)
 
+    def register_skill(self, *args, **kwargs) -> None:
+        pass
+
 
 def a11y(ctx, args="", **kw):
     lyre.register(ctx)

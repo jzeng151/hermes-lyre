@@ -21,7 +21,7 @@ Owner: @jzeng151
 | AC-11 No English inserted in non-Latin replies | Unit tests (Japanese, Arabic, Russian samples) | | Pending |
 | AC-12 Verbosity keeps all information | Parametrized test | `test_verbosity.py::test_ac12_every_level_keeps_all_information`, `test_levels_only_change_framing` | Pass |
 | AC-13 Exception returns input | Unit test with a rule forced to raise | `test_core.py::test_raising_rule_returns_input` | Pass |
-| AC-14 Survives core WhatsApp plain-output formatter | Round-trip test | | Pending |
+| AC-14 Survives core WhatsApp plain-output formatter | Round-trip test against core's plain-text formatter (`strip_markdown`; v0.23.0 has no separate WhatsApp plain-output mode). Status words and code without Markdown markers survive; core strips `**` inside code, recorded as a strict expected failure | `test_roundtrip.py::test_ac14_status_words_survive_core_plain_text_formatter` | Pass |
 | AC-15 Escapes and inline code stable across passes | Unit test, plain profile | | Pending |
 | AC-16 Braille text unchanged | Unit test | | Pending |
 | AC-17 Display math byte-identical | Unit test, both profiles | | Pending |
@@ -43,7 +43,7 @@ Owner: @jzeng151
 ## Manual Checks
 
 - [ ] Read five golden outputs aloud with a screen reader and note anything that sounds wrong.
-- [ ] Review the round-trip outputs for each adapter by eye.
+- [ ] Review the round-trip outputs for each adapter by eye (`lyre/tests/roundtrip_fixtures/`).
 - [ ] Confirm the fence decision from #2 is reflected in R7 and its tests.
 - [ ] Confirm the backtick and backslash finding from #2 (Q5) is reflected in R1, R8 and their tests.
 

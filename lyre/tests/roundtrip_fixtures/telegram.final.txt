@@ -1,0 +1,20 @@
+*Build results \(done\)*
+
+The *deploy* finished\. Two checks need a look:
+
+Table, 2 rows, 3 columns: Check, Status, Time\.
+Row 1: Check Unit tests, Status \(done\) passed, Time 42 s\.
+Row 2: Check Lint, Status \(warning\) 3 warnings, Time 8 s\.
+End of table\.
+
+2 items\.
+1, Fix the warnings in `app.py`
+2, Re\-run with:
+
+Bash code, 1 line:
+```bash
+make lint
+```
+End of code\.
+
+See the CI run, link: https://ci\.example\.test/runs/1234 for details
