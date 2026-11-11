@@ -84,6 +84,8 @@ def _list_end(lines: list[str], i: int) -> int:
                 j = k
                 continue
             break
+        if is_thematic_break(line) and indent_width(line) < 4:
+            break  # ``* * *`` looks like an item but is a break, and a break ends the list
         if not (LIST_ITEM_RE.match(line) or indent_width(line) > 0) and starts_block(line):
             break
         j += 1
