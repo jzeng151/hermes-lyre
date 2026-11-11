@@ -26,7 +26,7 @@ def test_ascii_letter_counts_avoid_python_character_classification():
 
 
 @pytest.mark.parametrize(("text", "expected"), [
-    ("Az 123!", (2, 2)), ("éЖ中文", (1, 4)), ("ℹ️abc", (3, 4)),
+    ("Az 123!", (2, 2)), ("éЖ中文", (1, 4)), ("ℹ️abc", (3, 3)),
     ("\ue000i123\ue001Ж", (0, 1)), ("123 !", (0, 0)),
 ])
 def test_letter_fast_path_preserves_script_counts(text, expected):

@@ -18,7 +18,9 @@ from . import register_inline_rule
 
 _EMPHASIS = [
     re.compile(r"\*\*\*(?=\S)([^*\n]+?)(?<=\S)\*\*\*"),
-    re.compile(r"\*\*(?=\S)([^*\n]+?)(?<=\S)\*\*"),
+    # A single-emphasis child may touch either bold edge after emoji removal. Keep its
+    # markers in the capture so the single-emphasis pass can resolve it inside out.
+    re.compile(r"\*\*(?=\S)((?:[^*\n]|\*(?=[^\s*])[^*\n]+?(?<=[^\s*])\*)+?)(?<=\S)\*\*"),
     re.compile(r"(?<![\w.])__(?=\S)([^_\n]+?)(?<=\S)__(?=[\s,;:!?)]|$)"),
     # Single asterisks may sit inside a word (``un*believ*able``, CJK text) but not next to a
     # digit, so arithmetic such as ``2*3*4`` keeps its operators.
@@ -27,6 +29,18 @@ _EMPHASIS = [
 ]
 # Exact two-tilde delimiters may contain isolated tildes, never a longer tilde run.
 _STRIKE = re.compile(r"(?<!~)~~(?=\S)((?:[^~\n]|(?<!~)~(?!~))+?)(?<=\S)~~(?!~)")
+
+
+def paired_delimiter_edges(text: str) -> tuple[set[int], set[int]]:
+    """Collect paired opener/closer content offsets once, before emoji edits shift them."""
+    openings: set[int] = set()
+    closings: set[int] = set()
+    for pattern in [*_EMPHASIS, _STRIKE]:
+        for match in pattern.finditer(text):
+            if match.group(0).startswith(("*", "~~")):
+                openings.add(match.start(1))
+                closings.add(match.end(1))
+    return openings, closings
 
 
 def emphasis(text: str, opts: Options) -> str:

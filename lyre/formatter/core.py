@@ -83,8 +83,9 @@ def _letter_counts(lines: list[str]) -> tuple[int, int]:
             latin += count
             total += count
             continue
-        for ch in text:
-            if ch.isalpha():
+        for i, ch in enumerate(text):
+            # A letter shown as emoji (information source with U+FE0F) is decoration, not script.
+            if ch.isalpha() and text[i + 1:i + 2] != "\uFE0F":
                 total += 1
                 code = ord(ch)
                 if code < 0x250 or 0x1E00 <= code <= 0x1EFF or 0x2C60 <= code <= 0x2C7F or 0xA720 <= code <= 0xA7FF:

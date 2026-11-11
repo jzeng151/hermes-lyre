@@ -111,6 +111,8 @@ Each rule lists the output at `normal` verbosity, then the differences at `brief
 | any other emoji | removed |
 
 - Whole sequences are one emoji: variation selectors (U+FE0E, U+FE0F), skin tones (U+1F3FB to U+1F3FF), zero-width joiner sequences, keycaps, tag flags. No orphan code point is left behind.
+- An emoji is a character that displays as emoji by default, or a text-default character followed by U+FE0F, or a status symbol from the table. Symbols that share Unicode blocks with emoji but have no emoji presentation (`♯`, `♭`, `★`, `✓`) are never removed (ADR 0004).
+- Spacing next to emphasis: an emphasis delimiter touching the emoji stays touching the text (`**✅ Done**` -> `**(done) Done**`). This includes paired intraword asterisks: `un*🎉believ*able` -> `un*believ*able` and `*Hello🎉*world` -> `*Hello*world` on `markdown`, with the markers removed on `plain`. Literal intraword underscores keep their existing behavior. Delimiters of neighboring spans remain separate (`*one*🎉**two**` -> `*one* **two**` on `markdown`, `one two` on `plain`); an emptied wrapper is removed.
 - A run of emoji becomes its status words joined by single spaces: `✅ 🎉 ⚠️` -> `(done) (warning)`.
 - Spacing is normalized only where an emoji was removed: `Hello 🎉 world` -> `Hello world`.
 - A line that becomes empty after removal is removed.
