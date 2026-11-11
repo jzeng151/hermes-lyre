@@ -31,4 +31,5 @@ def drawing_only(text: str, opts: Options) -> str:
 
 
 register_block_rule("rule", thematic_break)
-register_inline_rule("drawing-only", drawing_only, order=10)
+# After emphasis (50) and emoji (20) removal, which can leave a line of only drawing characters.
+register_inline_rule("drawing-only", drawing_only, order=80)
