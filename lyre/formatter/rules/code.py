@@ -79,7 +79,7 @@ def code(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
     if block.kind != "code" or already_labelled(block.meta.get("prev_text"), block.meta.get("next_text")):
         return None
     following = block.meta.get("next")
-    if following and indent_width(following) >= 4:
+    if following and indent_width(following) >= 4 and not starts_block(following):
         # Keep prose after a fence from gaining a blank boundary and becoming code.
         return None
     out = labelled(block.lines[0], opts)
