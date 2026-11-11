@@ -29,6 +29,9 @@ def is_table_separator(line: str) -> bool:
 
 
 def is_thematic_break(line: str) -> bool:
+    first = line.lstrip(" \t")
+    if not first or first[0] not in "-*_":
+        return False
     if indent_width(line) > 3:
         return False
     body = line.replace(" ", "").replace("\t", "")
@@ -47,6 +50,9 @@ def starts_block(line: str) -> bool:
 
 def syntax_categories(line: str, prev: str | None) -> set[str]:
     """Block syntax *line* starts with; *prev* is the line above (setext underlines need it)."""
+    body = line.lstrip()
+    if not body or (body[0] not in "-*+_#>|`~$=:" and not body[0].isdecimal()):
+        return set()
     found = set()
     if LIST_ITEM_RE.match(line):
         found.add("list")
