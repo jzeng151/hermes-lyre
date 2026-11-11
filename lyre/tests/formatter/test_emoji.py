@@ -167,3 +167,10 @@ def test_emptied_emphasis_wrapper_is_removed(text, kw, expected, profile):
         expected = "Hello **(done)** world"
     assert out == expected
     assert format_for_speech(out, profile=profile, **kw) == out
+
+
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_delimiters_of_neighbouring_spans_are_kept(profile):
+    out = format_for_speech("*one*🎉**two**", profile=profile)
+    assert out == ("one two" if profile == "plain" else "*one* **two**")
+    assert format_for_speech(out, profile=profile) == out

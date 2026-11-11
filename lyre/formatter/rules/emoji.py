@@ -106,7 +106,10 @@ def _label(sequence: str, opts: Options) -> str | None:
 def _drop_emptied_wrapper(left: str, right: str) -> tuple[str, str]:
     """``**🎉**`` with the emoji removed leaves ``****``: drop the emptied delimiter pair too."""
     marks = left[len(left.rstrip(_DELIMITERS)):]
-    if marks and right.startswith(marks[::-1]):
+    closing = right[:len(right) - len(right.lstrip(_DELIMITERS))]
+    # Only an exact pair that wraps the emoji: the whole run on each side, mirrored, opening on
+    # the left and closing on the right. ``*one*🎉**two**`` has a closer then an opener: kept.
+    if marks and closing == marks[::-1] and _opening_delimiter_before(left) and _closing_delimiter_after(right):
         return left[:-len(marks)], right[len(marks):]
     return left, right
 
