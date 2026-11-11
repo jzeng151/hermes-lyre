@@ -60,6 +60,13 @@ def _unsafe_cell(cell: str, block: Block) -> bool:
     # Complete tags, code, escapes and destinations are safe. An exposed '<' may instead
     # acquire a closing '>' from a repeated column label, creating a multiline HTML span.
     text = protect_inline(text, stash)
+    # Paired math is protected above. Leftover $$ could pair across cells in prose,
+    # changing which emphasis is protected on the next pass (including longer $ runs).
+    # Math is recognized before escapes, so an escaped first dollar still counts.
+    math_text = TOKEN_RE.sub(
+        lambda m: (stash.value_of(m.group(0)) or m.group(0)) if m.group(1) == "e" else m.group(0), text)
+    if "$$" in math_text:
+        return True
     # Reference destinations depend on a line-start anchor, which prose cannot retain.
     # Keep both empty definitions and complete ones whose protection would be lost.
     if _REFERENCE_RE.match(text):
