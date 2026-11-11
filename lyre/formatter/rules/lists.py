@@ -11,7 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from ..model import Block, Options
-from ..blocks import syntax_categories
+from ..blocks import is_thematic_break, syntax_categories
 from ..spans import LIST_ITEM_RE, indent_width, is_block_token_line
 from . import InlineFn, register_block_rule
 
@@ -62,18 +62,20 @@ def _parse(lines: list[str]) -> list[_List] | None:
     prev_blank = False
     for line in lines:
         m = LIST_ITEM_RE.match(line)
+        if m and (is_thematic_break(line) or LIST_ITEM_RE.match(line[m.end():])):
+            return None  # ``* * *`` is a break, not an item; ``- - a`` nests on the marker line
         if m:
             indent, kind = indent_width(m.group(1)), _kind(m.group(2))
             # A nested list ends only at a marker left of its parent's content column; a marker
             # less indented than its siblings but still inside the parent stays in the list.
             while stack and indent < stack[-1].owner:
                 stack.pop()
-            if stack and indent == stack[-1].indent and kind != stack[-1].kind:
-                stack.pop()  # same level, new marker type: a separate list
-                _new_list(stack, roots, len(stack) + 1, indent, kind)
-            elif not stack or (stack[-1].items and indent >= stack[-1].items[-1].column):
+            if not stack or (stack[-1].items and indent >= stack[-1].items[-1].column):
                 # A marker nests only when it reaches the content column of the item above;
                 # a smaller indent (`` - second`` under ``- first``) is a sibling.
+                _new_list(stack, roots, len(stack) + 1, indent, kind)
+            elif kind != stack[-1].kind:
+                stack.pop()  # a sibling with a new marker type: a separate list at this level
                 _new_list(stack, roots, len(stack) + 1, indent, kind)
             target = stack[-1]
             marker = m.group(2)
@@ -164,9 +166,11 @@ def _is_unclosed(token: str, opts: Options) -> bool:
     if value is None or token.strip()[1] != "f":
         return False
     lines = value.split("\n")
-    fence = lines[0].lstrip()[:3]
+    opener = lines[0].lstrip()
+    fence = opener[:len(opener) - len(opener.lstrip(opener[:1]))]  # the whole run, ```` or ~~~~~
     last = lines[-1].strip()
-    return len(lines) < 2 or not last.startswith(fence) or last != last[0] * len(last)
+    closed = len(lines) >= 2 and len(last) >= len(fence) and last == fence[0] * len(last)
+    return not closed
 
 
 def _unclosed_fence(lst: _List, opts: Options) -> bool:
