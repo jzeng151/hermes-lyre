@@ -22,7 +22,8 @@ LIST_ITEM_RE = re.compile(r"^([ \t]*)([-*+]|\d{1,9}[.)])([ \t]+|$)")
 ESCAPE_RE = re.compile(r"\\[!-/:-@\[-`{-~]")
 HTML_TAG_RE = re.compile(r"""</?[A-Za-z][A-Za-z0-9-]*(?:\s(?:[^<>"'\n]|"[^"\n]*"|'[^'\n]*')*)?/?>""")
 INLINE_MATH_RE = re.compile(r"\$\$[^$\n]+\$\$")
-URL_RE = re.compile("(?:https?|ftp)://[^\\s<>\ue000\ue001]+")
+# A raw ``|`` is not valid in a URL (it is written %7C), and it ends a table cell.
+URL_RE = re.compile("(?:https?|ftp)://[^\\s<>|\ue000\ue001]+")
 URL_TRAILING = ".,;:!?'\"*_"
 
 

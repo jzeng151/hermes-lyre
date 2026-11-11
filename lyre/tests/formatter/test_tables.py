@@ -89,3 +89,23 @@ def test_markdown_profile_also_speaks_tables():
 def test_idempotent(text, verbosity):
     once = plain(text, verbosity=verbosity)
     assert plain(once, verbosity=verbosity) == once
+
+
+def test_bare_url_ends_at_cell_boundary():
+    assert plain("|A|B|\n|---|---|\n|https://x.test|secret|") == (
+        "Table, 1 row, 2 columns: A, B.\nRow 1: A https://x.test, B secret.\nEnd of table.")
+
+
+def test_cell_limit_measures_protected_text():
+    text = "| A |\n|---|\n| `" + "x" * 501 + "` |"
+    assert plain(text) == text
+
+
+def test_markers_paired_across_cells_keep_table():
+    text = "| A | B |\n|---|---|\n| *alpha | beta* |"
+    assert plain(text) == text
+
+
+def test_pipe_less_short_row_is_a_row():
+    assert plain("| A | B |\n|---|---|\nshort\n| next | value |") == (
+        "Table, 2 rows, 2 columns: A, B.\nRow 1: A short, B blank.\nRow 2: A next, B value.\nEnd of table.")

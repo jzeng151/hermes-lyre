@@ -33,6 +33,19 @@ def _sentence(text: str) -> str:
     return text if text.endswith(_END_PUNCT) else text + "."
 
 
+def _original(cell: str, block: Block) -> str:
+    """The cell as written, with protected spans (and spans nested in them) expanded."""
+    span = block.meta.get("span")
+    if not span:
+        return cell
+    for _ in range(8):  # nesting is shallow; the bound only guards against a bad token
+        expanded = TOKEN_RE.sub(lambda m: span(m.group(0)) or m.group(0), cell)
+        if expanded == cell:
+            break
+        cell = expanded
+    return cell
+
+
 def _cell_text(cell: str, block: Block, inline: InlineFn) -> str:
     span = block.meta.get("span")
 
@@ -50,7 +63,7 @@ def tables(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
     header = split_row(block.lines[0])
     rows = [split_row(line) for line in block.lines[2:]]
     too_big = (len(rows) > MAX_ROWS or len(header) > MAX_COLUMNS
-               or any(len(cell) > MAX_CELL for row in [header, *rows] for cell in row))
+               or any(len(_original(cell, block)) > MAX_CELL for row in [header, *rows] for cell in row))
     if not opts.latin or too_big or any(len(row) > len(header) for row in rows):
         return list(block.lines)  # pass through byte-identical
     names = [_cell_text(cell, block, inline) if cell else f"Column {i + 1}" for i, cell in enumerate(header)]
@@ -71,6 +84,10 @@ def tables(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
         out.append(_sentence(f"Row {number}: " + ", ".join(parts)))
     if opts.verbosity != "brief":
         out.append("End of table.")
+    if any(inline(line) != line for line in out):
+        # Joining cells paired markers that were apart (``*alpha | beta*``); the next pass would
+        # strip them, so the table stays as written.
+        return list(block.lines)
     return out
 
 

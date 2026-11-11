@@ -190,7 +190,8 @@ End of table.
   - a body row with more cells than the header,
   - more than 50 body rows,
   - more than 10 columns,
-  - any cell over 500 characters.
+  - any cell over 500 characters (measured as written, protected spans included),
+  - joining the cells into sentences would pair emphasis markers that sat in different cells (`*alpha | beta*`).
 - A body row with fewer cells than the header is padded with `blank`. A blank header cell is named `Column N`.
 - Tables in mostly non-Latin replies pass through byte-identical, because every sentence form inserts English words.
 - `brief`: `Table, 2 rows: Name, Price, Stock.` then `Row 1: Alpha, $10, 4.`; no `End of table.`
