@@ -28,6 +28,9 @@ class Ctx:
     def register_hook(self, name, callback, **kwargs) -> None:
         self.hooks[name] = callback
 
+    def register_command(self, *args, **kwargs) -> None:
+        pass
+
 
 def callback(**settings):
     ctx = Ctx(**settings)
