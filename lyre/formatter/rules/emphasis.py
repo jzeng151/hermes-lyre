@@ -19,8 +19,10 @@ from . import register_inline_rule
 _EMPHASIS = [
     re.compile(r"\*\*\*(?=\S)([^*\n]+?)(?<=\S)\*\*\*"),
     # Preserve single-emphasis children touching bold edges after emoji removal.
-    re.compile(r"\*\*(?=\S)((?:[^*\n]|\*(?=[^\s*])[^*\n]+?(?<=[^\s*])\*)+?)(?<=\S)\*\*"),
-    re.compile(r"(?<![\w.])__(?=\S)([^_\n]+?)(?<=\S)__(?=[\s,;:!?)\]]|$)"),
+    # Strong emphasis may also hold an isolated literal marker (``**Edit *.py files**``,
+    # ``__snake_case__``); a run of two never sits inside it.
+    re.compile(r"\*\*(?=\S)((?:[^*\n]|\*(?=[^\s*])[^*\n]+?(?<=[^\s*])\*|(?<!\*)\*(?!\*))+?)(?<=\S)\*\*"),
+    re.compile(r"(?<![\w.])__(?=\S)((?:[^_\n]|(?<!_)_(?!_))+?)(?<=\S)__(?=[\s,;:!?)\]]|$)"),
     # Single asterisks may sit inside a word (``un*believ*able``, CJK text) but not next to a
     # digit, so arithmetic such as ``2*3*4`` keeps its operators.
     re.compile(r"(?<![*\d])\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*(?![*\d])"),
@@ -45,14 +47,20 @@ def paired_delimiter_edges(text: str) -> tuple[set[int], set[int]]:
 def emphasis(text: str, opts: Options) -> str:
     # Strikethrough first: ``~~__x__~~`` must see ``)`` after the underscores in this same call.
     if opts.latin and "~~" in text:
-        text = _STRIKE.sub(r"(removed: \1)", text)
+        # Nested strikethrough (``~~a ~~b~~ c~~``) resolves inside out, like nested emphasis.
+        for _ in range(4):
+            before, text = text, _STRIKE.sub(r"(removed: \1)", text)
+            if text == before or "~~" not in text:
+                break
     if opts.profile == "plain" and ("*" in text or "_" in text):
         # Nested emphasis (``**bold *italic* text**``) resolves inside out, so repeat until
         # stable; each round removes at least one marker pair, and the bound keeps it cheap.
         for _ in range(4):
             before = text
             for pattern in _EMPHASIS:
-                text = pattern.sub(r"\1", text)
+                # A raw backtick left after protection is unmatched; removing markers beside it
+                # could join it into a longer run and change which code spans pair next pass.
+                text = pattern.sub(lambda m: m.group(0) if "`" in m.group(0) else m.group(1), text)
                 # No later pattern or round can match once every delimiter is gone.
                 if "*" not in text and "_" not in text:
                     return text

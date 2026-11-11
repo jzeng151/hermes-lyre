@@ -149,7 +149,12 @@ def _code_threshold(line: str, prev_blank: bool, list_col: int | None) -> int | 
 _ENDS_LIST_RE = re.compile(r"^ {0,3}(?:#{1,6}(?:[ \t]|$)|>|(?:[-*_][ \t]*){3,}$)")
 
 
+_BREAK_RE = re.compile(r"^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$")
+
+
 def _track_list(line: str, prev_blank: bool, list_col: int | None) -> int | None:
+    if _BREAK_RE.match(line):
+        return None  # ``* * *`` looks like an item but is a thematic break: it ends any list
     col = list_content_column(line)
     if col is not None:
         return col
@@ -305,6 +310,8 @@ def _protect_code_spans(line: str, stash: Stash) -> str:
         return line
     targets = _link_target_ranges(line) if "](" in line else []
     target_ends = [end for _, end in targets]
+    maths = [m.span() for m in INLINE_MATH_RE.finditer(line)] if "$$" in line else []
+    math_ends = [end for _, end in maths]
     by_len: dict[int, list[int]] = {}
     for idx, (_, size) in enumerate(runs):
         by_len.setdefault(size, []).append(idx)
@@ -326,6 +333,10 @@ def _protect_code_spans(line: str, stash: Stash) -> str:
         if t < len(targets) and pos <= targets[t][0] <= start:
             idx += 1
             continue  # a target started before this opener; earlier code still takes precedence
+        t = bisect.bisect_right(math_ends, start)
+        if t < len(maths) and pos <= maths[t][0] < start:
+            idx += 1
+            continue  # inside inline math that opened outside any code span: a literal backtick
         same = by_len[size]
         nxt = bisect.bisect_right(same, idx)
         if nxt == len(same):
@@ -538,7 +549,10 @@ def protect_inline(line: str, stash: Stash) -> str:
     if "`" in line:
         line = _protect_code_spans(line, stash)
     if "$$" in line:
-        line = _sub_outside_urls(INLINE_MATH_RE, "n", line, stash)
+        # Math never reaches into a link destination: the destination is protected whole below.
+        targets = _link_target_ranges(line) if "](" in line else []
+        line = _sub_outside_urls(INLINE_MATH_RE, "n", line, stash,
+                                 skip=lambda m: any(m.start() < e and m.end() > s for s, e in targets))
     if "<" in line:
         # Tags before escapes: a backslash inside an attribute does not escape its closing quote.
         # An escaped ``\<`` is not a tag.

@@ -171,8 +171,17 @@ def _protected_letter_counts(lines: list[str], depth: int = 0, stash: Stash | No
     return latin, total
 
 
+_MARKER_REGION_RE = re.compile(r"[ >\t]*")
+
+
 def _strip_quote_marker(line: str) -> tuple[str, str]:
     """Split one quote line into its marker prefix and its contents."""
+    markers = _MARKER_REGION_RE.match(line)
+    if markers and ">\t" in markers.group(0):
+        # A tab after a marker counts as columns (CommonMark), measured from the start of the
+        # whole line: one is the optional space, the rest stay as indentation. Expanding the
+        # marker region once keeps nested quotes consistent (``> >\ttext`` is quoted prose).
+        line = markers.group(0).expandtabs(4) + line[markers.end():]
     body = line.lstrip(" ")[1:]
     if body.startswith(" "):
         body = body[1:]
