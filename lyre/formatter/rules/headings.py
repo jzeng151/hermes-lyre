@@ -40,7 +40,7 @@ def _strip_closing_hashes(text: str) -> str:
 def headings(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
     if opts.profile != "plain":
         return None
-    if any(m.group(1) == "t" for line in block.lines for m in TOKEN_RE.finditer(line)):
+    if any(m.group(1) in ("t", "q") for line in block.lines for m in TOKEN_RE.finditer(line)):
         # An opaque container can end in code; punctuation would be appended inside it.
         return block.lines
     text = inline(heading_text(block)).strip()
