@@ -516,3 +516,20 @@ def test_quote_code_keeps_trailing_spaces(temp_rules):
     _, add_block = temp_rules
     add_block("blockquote", lambda b, o, inline: list(b.meta["inner_out"]))
     assert format_for_speech("> ```py\n> x = 1  \n> ```", profile="plain") == "```py\nx = 1  \n```"
+
+
+@pytest.mark.parametrize("text,expected", [
+    ('<span title="**literal** `">**prose**</span> `', '<span title="**literal** `">prose</span> `'),
+    ("[label][id]\n\n[id]: /path/**literal**", "[label][id]\n\n[id]: /path/**literal**"),
+    ("[id]: </a b/**x**> \"**title**\"", "[id]: </a b/**x**> \"title\""),
+])
+def test_review_round_eight_protection(temp_rules, text, expected):
+    _strip(temp_rules)
+    assert format_for_speech(text, profile="plain") == expected
+
+
+def test_removed_first_line_does_not_expose_indented_code(temp_rules):
+    add_inline, _ = temp_rules
+    add_inline("drop", lambda t, o: "" if t.strip() == "X" else t)
+    once = format_for_speech("X\n    print('x')", profile="plain")
+    assert once == "print('x')"
