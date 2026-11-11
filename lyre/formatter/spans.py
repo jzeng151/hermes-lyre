@@ -75,10 +75,12 @@ def indent_width(line: str) -> int:
 
 
 def is_block_token_line(line: str) -> bool:
-    return bool(BLOCK_TOKEN_RE.match(line))
+    return OPEN in line and bool(BLOCK_TOKEN_RE.match(line))
 
 
 def block_token_kind(line: str) -> str | None:
+    if OPEN not in line:
+        return None
     m = BLOCK_TOKEN_RE.match(line)
     return BLOCK_KINDS[m.group(1)[1]] if m else None
 
@@ -399,6 +401,8 @@ def protect_code_spans(lines: list[str], stash: Stash, skip, starts_block=lambda
     line that *one_line_block* accepts (a heading), because inline content never crosses a
     block boundary.
     """
+    if not any("`" in line or "](" in line or "]:" in line or "<" in line for line in lines):
+        return lines
     out: list[str] = []
     group: list[str] = []
 
