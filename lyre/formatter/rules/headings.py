@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 
 from ..model import Block, Options
+from ..spans import TOKEN_RE
 from . import InlineFn, register_block_rule
 
 _ATX_OPEN = re.compile(r"^ {0,3}#{1,6}(?:[ \t]+|$)")
@@ -39,6 +40,9 @@ def _strip_closing_hashes(text: str) -> str:
 def headings(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
     if opts.profile != "plain":
         return None
+    if any(m.group(1) == "t" for line in block.lines for m in TOKEN_RE.finditer(line)):
+        # An opaque container can end in code; punctuation would be appended inside it.
+        return block.lines
     text = inline(heading_text(block)).strip()
     if not text:
         return []
@@ -46,8 +50,8 @@ def headings(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
         text += "."
     if opts.verbosity == "full" and opts.latin:
         text = ("Heading: " if block.meta.get("level", 1) <= 2 else "Subheading: ") + text
-    if text.startswith("$$"):
-        # A newly exposed opener would consume the next display-math block on a later pass.
+    if text.startswith("$$") or _ATX_OPEN.match(text):
+        # Exposed math can consume a later block; exposed ATX would be rewritten next pass.
         return block.lines
     prev = block.meta.get("prev")
     return ["", text] if prev is not None and prev.strip() else [text]
