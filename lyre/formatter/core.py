@@ -7,6 +7,7 @@ Rules live in ``lyre.formatter.rules``; with none registered the output equals t
 from __future__ import annotations
 
 import re
+from collections import Counter
 from dataclasses import replace
 from typing import cast
 
@@ -109,11 +110,11 @@ def _protect(text: str, stash: Stash) -> list[str]:
     out = []
     for block in segment(lines):
         if block.kind == "list":
-            block.lines = [stash.put("t", line) if QUOTE_RE.match(line) else line for line in block.lines]
+            block.lines = [stash.put("q", line) if QUOTE_RE.match(line) else line for line in block.lines]
         if block.kind == "blockquote" and any(not QUOTE_RE.match(line) for line in block.lines):
             # Lazy continuations lack marker prefixes. Keep this unsupported container whole,
             # rather than exposing a cross-line code span or inventing quote markers.
-            out.append(stash.put("t", "\n".join(block.lines)))
+            out.append(stash.put("q", "\n".join(block.lines)))
         elif block.kind == "table":
             out.extend(protect_cells(line, stash) for line in block.lines)
         else:
@@ -124,13 +125,25 @@ def _protect(text: str, stash: Stash) -> list[str]:
 
 def _reply_letter_counts(text: str, depth: int = 0) -> tuple[int, int]:
     """Letters outside protected spans, quote contents included (each quote protected as a container)."""
-    return _protected_letter_counts(_protect(text, Stash()), depth)
+    stash = Stash()
+    return _protected_letter_counts(_protect(text, stash), depth, stash)
 
 
-def _protected_letter_counts(lines: list[str], depth: int = 0) -> tuple[int, int]:
+def _protected_letter_counts(lines: list[str], depth: int = 0, stash: Stash | None = None) -> tuple[int, int]:
     """Count already-protected lines, descending into quote containers only."""
     latin, total = _letter_counts([line for line in lines if not QUOTE_RE.match(line)])
     if depth < MAX_QUOTE_DEPTH:
+        if stash is not None and "q" in stash.kinds:
+            for line in lines:
+                if OPEN + "q" not in line:
+                    continue
+                for token in TOKEN_RE.finditer(line):
+                    if token.group(1) == "q":
+                        raw = stash.values[int(token.group(2))]
+                        inner = "\n".join(_strip_quote_marker(s)[1] if QUOTE_RE.match(s) else s
+                                          for s in raw.split("\n"))
+                        q_latin, q_total = _reply_letter_counts(inner, depth + 1)
+                        latin, total = latin + q_latin, total + q_total
         # Each contiguous quote is its own container, as in _render_quote: an unclosed fence in
         # one quote must not swallow the letters of the next.
         runs: list[list[str]] = [[]]
@@ -158,7 +171,7 @@ def _process(text: str, opts: Options, depth: int) -> str:
     stash = Stash()
     lines = _protect(text, stash)
     if depth == 0:
-        latin, total = _protected_letter_counts(lines)
+        latin, total = _protected_letter_counts(lines, stash=stash)
         opts = replace(opts, latin=total == 0 or latin * 2 >= total)
     opts = replace(opts, span=stash.value_of)
     entries: list = []
@@ -237,7 +250,9 @@ def _exposed_at_boundary(first: str, prev_out: str | None) -> bool:
     """
     if prev_out is None or not prev_out.strip():
         return False
-    return bool(syntax_categories(first, prev_out) - syntax_categories(first, None))
+    # Indented code cannot interrupt preceding prose. Unwrapping a quote must not
+    # turn its protected code into a paragraph continuation on the next pass.
+    return indent_width(first) >= 4 or bool(syntax_categories(first, prev_out) - syntax_categories(first, None))
 
 
 def _inline_fn(opts: Options):
@@ -329,12 +344,17 @@ def _guard(before: list[str], after: list[str], per_line: bool) -> list[str]:
     categories = [syntax_categories(line, after[i - 1] if i else None) for i, line in enumerate(after)]
     if not any(categories):
         return after
-    had: set[str] = set()
-    for i, line in enumerate(before):
-        had |= syntax_categories(line, before[i - 1] if i else None)
-    for category in categories:
-        if category - had:
+    # A changed line count destroys positional correspondence. Only an unchanged
+    # source line can justify keeping syntax; another line's category is not evidence.
+    available = Counter((line, frozenset(syntax_categories(line, before[i - 1] if i else None)))
+                        for i, line in enumerate(before))
+    for line, category in zip(after, categories):
+        if not category:
+            continue
+        key = (line, frozenset(category))
+        if not available[key]:
             return before
+        available[key] -= 1
     return after
 
 
