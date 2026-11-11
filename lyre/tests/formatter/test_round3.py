@@ -21,6 +21,19 @@ def test_list_blank_requires_actual_content_column(marker):
     assert [block.kind for block in blocks.segment(text.split("\n"))] == ["list", "blank", "paragraph"]
 
 
+@pytest.mark.parametrize("marker, indent", [("- ", "  "), ("1. ", "   "), ("-   ", "    ")])
+def test_list_blank_can_resume_parent_after_nested_child(marker, indent):
+    text = (f"{marker}Parent\n{indent}- child\n\n{indent}Parent continuation\n"
+            f"{indent}- second child\n- Next")
+    seen = []
+    rules.register_block_rule("list", lambda block, opts, inline: seen.append(block.lines))
+    assert core.format_for_speech(text, profile="plain") == text
+    assert seen == [text.split("\n")]
+    segmented = blocks.segment(text.split("\n"))
+    assert [block.kind for block in segmented] == ["list"]
+    assert segmented[0].lines == text.split("\n")
+
+
 @pytest.mark.parametrize("quote", [
     "> Привет мир\nэто длинный русский текст",
     "> Привет `English code`\nэто русский текст https://english.example/test",
