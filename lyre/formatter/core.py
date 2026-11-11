@@ -125,12 +125,17 @@ def _process(text: str, opts: Options, depth: int) -> str:
         latin, total = _reply_letter_counts(text)
         opts = replace(opts, latin=total == 0 or latin * 2 >= total)
     entries: list = []
+<<<<<<< HEAD
     blocks = segment(lines)
     for i, block in enumerate(blocks):
         block.meta["prev"] = blocks[i - 1].lines[-1] if i else None
         block.meta["next"] = blocks[i + 1].lines[0] if i + 1 < len(blocks) else None
     prev_out, prev_changed = None, False  # last rendered line of the previous block
     for block in blocks:
+=======
+    prev_out, prev_changed = None, False  # last rendered line of the previous block
+    for block in segment(lines):
+>>>>>>> origin/feat/formatter-core
         out = _render(block, opts, depth)
         first = block.lines[0] if out is None else (out[0] if out else None)
         changed = out is not None
