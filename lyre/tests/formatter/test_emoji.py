@@ -309,3 +309,11 @@ def test_standalone_skin_tones_follow_emoji_policy(tone, profile, policy):
     out = format_for_speech(text, profile=profile, emoji_policy=policy)
     assert out == expected
     assert format_for_speech(out, profile=profile, emoji_policy=policy) == out
+
+
+@pytest.mark.parametrize("text", ["\u0628\u062d*\u26a0 x*", "\u0628\u062d\u26a0 \u0631", "\u65e5\u672c\u2705\u8a9e"])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_kept_emoji_spacing_is_left_alone(text, profile):
+    # Found by the fuzz tests: a gap decided next to a ``*`` that emphasis later removed.
+    once = format_for_speech(text, profile=profile)
+    assert format_for_speech(once, profile=profile) == once
