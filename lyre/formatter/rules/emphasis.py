@@ -28,6 +28,17 @@ _EMPHASIS = [
 _STRIKE = re.compile(r"~~(?=\S)([^~\n]+?)(?<=\S)~~")
 
 
+def asterisk_delimiter_edges(text: str, start: int, end: int) -> tuple[bool, bool]:
+    """Whether a range touches a paired asterisk opener on its left or closer on its right."""
+    opening = closing = False
+    for pattern in _EMPHASIS:
+        for match in pattern.finditer(text):
+            if match.group(0).startswith("*"):
+                opening |= match.start(1) == start
+                closing |= match.end(1) == end
+    return opening, closing
+
+
 def emphasis(text: str, opts: Options) -> str:
     # Strikethrough first: ``~~__x__~~`` must see ``)`` after the underscores in this same call.
     if opts.latin and "~~" in text:
@@ -39,6 +50,9 @@ def emphasis(text: str, opts: Options) -> str:
             before = text
             for pattern in _EMPHASIS:
                 text = pattern.sub(r"\1", text)
+                # No later pattern or round can match once every delimiter is gone.
+                if "*" not in text and "_" not in text:
+                    return text
             if text == before:
                 break
     return text

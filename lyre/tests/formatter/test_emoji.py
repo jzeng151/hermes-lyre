@@ -158,6 +158,8 @@ def test_supplementary_text_symbols(text, expected):
     ("Hello **🎉** world", {}, "Hello world"),
     ("Hello **✅** world", {"emoji_policy": "remove"}, "Hello world"),
     ("Hello *🎉*.", {}, "Hello."),
+    ("un*🎉*able", {}, "un able"),
+    ("un**✅**able", {"emoji_policy": "remove"}, "un able"),
     ("Hello **✅** world", {}, "Hello (done) world"),
 ])
 @pytest.mark.parametrize("profile", ["plain", "markdown"])
@@ -170,10 +172,60 @@ def test_emptied_emphasis_wrapper_is_removed(text, kw, expected, profile):
 
 
 @pytest.mark.parametrize("profile", ["plain", "markdown"])
-def test_delimiters_of_neighbouring_spans_are_kept(profile):
-    out = format_for_speech("*one*🎉**two**", profile=profile)
-    assert out == ("one two" if profile == "plain" else "*one* **two**")
+@pytest.mark.parametrize("policy", ["words", "remove"])
+@pytest.mark.parametrize("marks", ["*", "**", "***"])
+def test_delimiters_of_neighbouring_spans_are_kept(profile, policy, marks):
+    text = f"*one*🎉{marks}two{marks}"
+    out = format_for_speech(text, profile=profile, emoji_policy=policy)
+    assert out == ("one two" if profile == "plain" else f"*one* {marks}two{marks}")
+    assert format_for_speech(out, profile=profile, emoji_policy=policy) == out
+
+
+@pytest.mark.parametrize("text,plain_out,markdown_out", [
+    ("un*🎉believ*able", "unbelievable", "un*believ*able"),
+    ("*Hello🎉*world", "Helloworld", "*Hello*world"),
+    ("*🎉Hello🎊*world", "Helloworld", "*Hello*world"),
+    ("un**🎉believ**able", "unbelievable", "un**believ**able"),
+    ("un***🎉believ***able", "unbelievable", "un***believ***able"),
+    ("这是*🎉强调*文字", "这是强调文字", "这是*强调*文字"),
+])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("policy", ["words", "remove", "keep"])
+def test_emoji_preserves_intraword_asterisk_emphasis(text, plain_out, markdown_out, profile, policy):
+    if policy == "keep":
+        expected = text.replace("*", "") if profile == "plain" else text
+    else:
+        expected = plain_out if profile == "plain" else markdown_out
+    out = format_for_speech(text, profile=profile, emoji_policy=policy)
+    assert out == expected
+    assert format_for_speech(out, profile=profile, emoji_policy=policy) == out
+
+
+@pytest.mark.parametrize("text,plain_out,markdown_out", [
+    ("un*✅believ*able", "un(done) believable", "un*(done) believ*able"),
+    ("*Hello✅*world", "Hello (done)world", "*Hello (done)*world"),
+])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_status_words_preserve_intraword_asterisk_emphasis(text, plain_out, markdown_out, profile):
+    expected = plain_out if profile == "plain" else markdown_out
+    out = format_for_speech(text, profile=profile)
+    assert out == expected
     assert format_for_speech(out, profile=profile) == out
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("un_🎉believ_able", "un_ believ_able"),
+    ("_Hello🎉_world", "_Hello _world"),
+    ("un__🎉believ__able", "un__ believ__able"),
+    ("2*🎉3*4", "2* 3*4"),
+    ("2*3🎉*4", "2*3 *4"),
+])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("policy", ["words", "remove", "keep"])
+def test_emoji_does_not_reinterpret_literal_intraword_markers(text, expected, profile, policy):
+    out = format_for_speech(text, profile=profile, emoji_policy=policy)
+    assert out == (text if policy == "keep" else expected)
+    assert format_for_speech(out, profile=profile, emoji_policy=policy) == out
 
 
 @pytest.mark.parametrize("tone", [chr(cp) for cp in range(0x1F3FB, 0x1F400)])

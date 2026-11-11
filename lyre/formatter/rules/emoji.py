@@ -12,6 +12,7 @@ import re
 
 from ..model import Options
 from . import register_inline_rule
+from .emphasis import asterisk_delimiter_edges
 
 # Emoji are matched by presentation, not by whole Unicode blocks, so symbols that share those
 # blocks (music sharps and flats, stars, check marks, crosses, chess and alchemy signs) are
@@ -104,30 +105,38 @@ def _label(sequence: str, opts: Options) -> str | None:
     return STATUS[base] if opts.latin else sequence
 
 
-def _drop_emptied_wrapper(left: str, right: str) -> tuple[str, str]:
+def _drop_emptied_wrapper(left: str, right: str, opening: bool, closing: bool) -> tuple[str, str]:
     """``**🎉**`` with the emoji removed leaves ``****``: drop the emptied delimiter pair too."""
     marks = left[len(left.rstrip(_DELIMITERS)):]
-    closing = right[:len(right) - len(right.lstrip(_DELIMITERS))]
+    closing_marks = right[:len(right) - len(right.lstrip(_DELIMITERS))]
     # Only an exact pair that wraps the emoji: the whole run on each side, mirrored, opening on
     # the left and closing on the right. ``*one*🎉**two**`` has a closer then an opener: kept.
-    if marks and closing == marks[::-1] and _opening_delimiter_before(left) and _closing_delimiter_after(right):
+    if (marks and closing_marks == marks[::-1]
+            and (opening or _opening_delimiter_before(left))
+            and (closing or _closing_delimiter_after(right))):
         return left[:-len(marks)], right[len(marks):]
     return left, right
 
 
-def _replace_run(line: str, start: int, end: int, opts: Options) -> tuple[str, str]:
+def _replace_run(line: str, start: int, end: int, opts: Options, prefix: str) -> tuple[str, str]:
     """Return (new text for the run including spacing, rest of line)."""
     labels = [label for m in SEQUENCE_RE.finditer(line, start, end)
               if (label := _label(m.group(0), opts))]
     left, right = line[:start], line[end:]
+    opening = closing = False
+    if left.endswith("*") or right.startswith("*"):
+        # Earlier runs may have consumed the opener, but its pairing context still matters.
+        opening, closing = asterisk_delimiter_edges(prefix + line, len(prefix) + start, len(prefix) + end)
     if not labels:
-        left, right = _drop_emptied_wrapper(left, right)
+        left, right = _drop_emptied_wrapper(left, right, opening, closing)
+        if left != line[:start] or right != line[end:]:
+            opening = closing = False
     left_text, right_text = left.rstrip(" \t"), right.lstrip(" \t")
     if not left.strip():
         left_text = left  # indentation before the first word is kept as written
     body = " ".join(labels)
-    tight_left = left_text.endswith(tuple(_NO_SPACE_AFTER)) or _opening_delimiter_before(left)
-    tight_right = right_text.startswith(tuple(_NO_SPACE_BEFORE)) or _closing_delimiter_after(right)
+    tight_left = opening or left_text.endswith(tuple(_NO_SPACE_AFTER)) or _opening_delimiter_before(left)
+    tight_right = closing or right_text.startswith(tuple(_NO_SPACE_BEFORE)) or _closing_delimiter_after(right)
     gap_left = bool(left.strip()) and bool(body or right_text) and not tight_left
     gap_right = bool(right_text) and bool(body) and not tight_right
     if not body:
@@ -145,7 +154,7 @@ def emoji(text: str, opts: Options) -> str:
         m = RUN_RE.search(rest)
         if not m:
             break
-        head, rest = _replace_run(rest, m.start(), m.end(), opts)
+        head, rest = _replace_run(rest, m.start(), m.end(), opts, out)
         out += head
     out += rest
     return out if out.strip() else ""

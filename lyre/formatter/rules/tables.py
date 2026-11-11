@@ -7,6 +7,8 @@ oversized tables, and tables in mostly non-Latin replies, pass through byte-iden
 
 from __future__ import annotations
 
+import re
+
 from ..model import Block, Options
 from ..spans import TOKEN_RE, Stash, protect_code_spans, protect_inline
 from . import InlineFn, register_block_rule
@@ -15,6 +17,8 @@ MAX_ROWS = 50
 MAX_COLUMNS = 10
 MAX_CELL = 500
 _END_PUNCT = (".", "!", "?")
+_PROTECTED_TARGET_RE = re.compile(r"\]\(" + TOKEN_RE.pattern + r"\)")
+_REFERENCE_RE = re.compile(r"^ {0,3}\[[^\]\n]+\]:")
 
 
 def split_row(line: str) -> list[str]:
@@ -55,7 +59,15 @@ def _unsafe_cell(cell: str, block: Block) -> bool:
         return True
     # Complete tags, code, escapes and destinations are safe. An exposed '<' may instead
     # acquire a closing '>' from a repeated column label, creating a multiline HTML span.
-    return "<" in TOKEN_RE.sub("", protect_inline(text, stash))
+    text = protect_inline(text, stash)
+    # Reference destinations depend on a line-start anchor, which prose cannot retain.
+    # Keep both empty definitions and complete ones whose protection would be lost.
+    if _REFERENCE_RE.match(text):
+        return True
+    # Complete targets keep their ](token) wrapper. Remove it before checking for an
+    # incomplete opener that could acquire its closing ')' from another cell or row.
+    exposed = TOKEN_RE.sub("", _PROTECTED_TARGET_RE.sub("", text))
+    return "<" in exposed or "](" in exposed
 
 
 def _cell_text(cell: str, block: Block, inline: InlineFn) -> str:
