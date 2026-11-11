@@ -3,7 +3,8 @@
 Plain profile: paired ``**``, ``__``, ``*``, ``_`` and ``***`` markers are removed. Both profiles:
 ``~~gone~~`` becomes ``(removed: gone)``, except in mostly non-Latin replies, which get no
 inserted English and keep the markers. Markers pair only on one line; escapes are protected
-spans, so an escaped marker never pairs. Underscore markers also need whitespace, line end or
+spans, so an escaped marker never pairs. Single asterisks may pair inside a word but never next
+to a digit (``2*3*4`` stays). Underscore markers also need whitespace, line end or
 ``,;:!?)`` after the closing marker, so file names like ``__init__.py`` keep their underscores
 (ADR 0003).
 """
@@ -19,7 +20,9 @@ _EMPHASIS = [
     re.compile(r"\*\*\*(?=\S)([^*\n]+?)(?<=\S)\*\*\*"),
     re.compile(r"\*\*(?=\S)([^*\n]+?)(?<=\S)\*\*"),
     re.compile(r"(?<![\w.])__(?=\S)([^_\n]+?)(?<=\S)__(?=[\s,;:!?)]|$)"),
-    re.compile(r"(?<![*\w])\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*(?![*\w])"),
+    # Single asterisks may sit inside a word (``un*believ*able``, CJK text) but not next to a
+    # digit, so arithmetic such as ``2*3*4`` keeps its operators.
+    re.compile(r"(?<![*\d])\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*(?![*\d])"),
     re.compile(r"(?<![\w.])_(?=[^\s_])([^_\n]+?)(?<=[^\s_])_(?=[\s,;:!?)]|$)"),
 ]
 _STRIKE = re.compile(r"~~(?=\S)([^~\n]+?)(?<=\S)~~")

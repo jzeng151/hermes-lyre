@@ -9,13 +9,13 @@ aside and the core puts the markers back.
 from __future__ import annotations
 
 from ..model import Block, Options
-from ..spans import FENCE_OPEN_RE
+from ..spans import FENCE_OPEN_RE, LIST_ITEM_RE
 from . import InlineFn, register_block_rule
 
 
 def blockquote(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
-    if opts.profile != "plain" or _has_unclosed_fence(block.meta["inner_out"]):
-        return None  # the core keeps the markers; an unclosed fence must stay inside the quote
+    if opts.profile != "plain" or _keep_markers(block.meta["inner_out"]):
+        return None  # the core keeps the markers
     inner = list(block.meta["inner_out"])
     while inner and not inner[0].strip():
         inner.pop(0)
@@ -35,17 +35,30 @@ def blockquote(block: Block, opts: Options, inline: InlineFn) -> list[str] | Non
     return inner
 
 
-def _has_unclosed_fence(lines: list[str]) -> bool:
-    fence = None
+def _keep_markers(lines: list[str]) -> bool:
+    """True when removing the markers would change how the rest of the reply parses.
+
+    An unclosed fence or ``$$`` would swallow what follows, and a list marker (one the list rule
+    did not speak) would carry list context into the next block, such as indented code.
+    """
+    fence, math = None, False
     for line in lines:
         body = line.strip()
-        if fence is None:
-            m = FENCE_OPEN_RE.match(line)
-            if m and not (m.group(2)[0] == "`" and "`" in m.group(3)):
-                fence = m.group(2)
-        elif len(body) >= len(fence) and body == fence[0] * len(body):
-            fence = None
-    return fence is not None
+        if fence is not None:
+            if len(body) >= len(fence) and body == fence[0] * len(body):
+                fence = None
+            continue
+        if math:
+            math = "$$" not in line
+            continue
+        m = FENCE_OPEN_RE.match(line)
+        if m and not (m.group(2)[0] == "`" and "`" in m.group(3)):
+            fence = m.group(2)
+        elif body.startswith("$$"):
+            math = not (len(body) >= 4 and body.endswith("$$"))
+        elif LIST_ITEM_RE.match(line):
+            return True
+    return fence is not None or math
 
 
 register_block_rule("blockquote", blockquote)
