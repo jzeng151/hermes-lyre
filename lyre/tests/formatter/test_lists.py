@@ -142,3 +142,9 @@ def test_outdented_sibling_stays_in_nested_list():
     once = plain("- parent\n   - first child\n  - second child\n- next")
     assert once == "2 items.\n1, parent\n  2 sub-items.\n  sub-item 1, first child\n  sub-item 2, second child\n2, next"
     assert plain(once) == once
+
+
+def test_outdented_top_level_sibling_stays_in_the_list():
+    once = plain(" - first\n- second")
+    assert once == "2 items.\n1, first\n2, second"
+    assert plain(once) == once
