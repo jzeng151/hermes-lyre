@@ -121,17 +121,17 @@ def _process(text: str, opts: Options, depth: int) -> str:
         latin, total = _reply_letter_counts(text)
         opts = replace(opts, latin=total == 0 or latin * 2 >= total)
     entries: list = []
-    prev_in = prev_out = None  # last line of the previous block, before and after rendering
+    prev_out, prev_changed = None, False  # last rendered line of the previous block
     for block in segment(lines):
         out = _render(block, opts, depth)
         first = block.lines[0] if out is None else (out[0] if out else None)
-        if first is not None and _exposed_at_boundary(first, prev_out, block.lines[0], prev_in):
+        changed = out is not None
+        if first is not None and (changed or prev_changed) and _exposed_at_boundary(first, prev_out):
             entries.append(("", True))  # keep the blocks apart (a new Setext underline or table)
         if block.kind == "blank":
-            prev_in = prev_out = None
-        else:
-            prev_in = block.lines[-1]
-            prev_out = prev_out if out == [] else (block.lines if out is None else out)[-1]
+            prev_out, prev_changed = None, False
+        elif out != []:
+            prev_out, prev_changed = (block.lines if out is None else out)[-1], changed
         if out is None:
             entries.extend((line, False) for line in block.lines)
         elif not out:
@@ -148,17 +148,17 @@ def _process(text: str, opts: Options, depth: int) -> str:
     return "\n".join(final)
 
 
-def _exposed_at_boundary(first: str, prev_out: str | None, first_in: str, prev_in: str | None) -> bool:
+def _exposed_at_boundary(first: str, prev_out: str | None) -> bool:
     """True when a block's first line gains block syntax from the rendered line above it.
 
     Each block is guarded on its own (step 6); this catches what only the neighbour shows, such
-    as ``===`` becoming the underline of a heading rewritten into a paragraph line.
+    as ``===`` becoming the underline of a heading rewritten into a paragraph line. In the input
+    a block boundary never carries such syntax (the segmenter would have joined the lines), so
+    any gain is new. Only checked where one of the two blocks changed.
     """
     if prev_out is None or not prev_out.strip():
         return False
-    gained = syntax_categories(first, prev_out) - syntax_categories(first, None)
-    had = syntax_categories(first_in, prev_in) - syntax_categories(first_in, None) if prev_in else set()
-    return bool(gained - had)
+    return bool(syntax_categories(first, prev_out) - syntax_categories(first, None))
 
 
 def _inline_fn(opts: Options):
