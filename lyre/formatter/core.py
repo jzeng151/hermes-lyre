@@ -10,7 +10,7 @@ from dataclasses import replace
 from typing import cast
 
 from . import rules
-from .blocks import QUOTE_RE, segment, syntax_categories
+from .blocks import ATX_RE, QUOTE_RE, segment, starts_block, syntax_categories
 from .model import (EMOJI_POLICIES, PROFILES, TABLE_STYLES, VERBOSITIES, Block, EmojiPolicy, Options, Profile,
                     TableStyle, Verbosity)
 from .spans import (CLOSE, OPEN, TOKEN_RE, Stash, is_block_token_line, protect_blocks, protect_code_spans,
@@ -90,7 +90,7 @@ def _protect(text: str, stash: Stash) -> list[str]:
     """Step 2 for one container level. Quote lines are protected by their own container pass."""
     lines = protect_blocks(text.split("\n"), stash)
     skip = lambda line: bool(is_block_token_line(line) or QUOTE_RE.match(line))  # noqa: E731
-    lines = protect_code_spans(lines, stash, skip)
+    lines = protect_code_spans(lines, stash, skip, starts_block, lambda line: bool(ATX_RE.match(line)))
     return [line if skip(line) else protect_inline(line, stash) for line in lines]
 
 
@@ -123,7 +123,9 @@ def _process(text: str, opts: Options, depth: int) -> str:
     opts = replace(opts, span=stash.value_of)
     entries: list = []
     prev_out, prev_changed = None, False  # last rendered line of the previous block
-    for block in segment(lines):
+    blocks = segment(lines)
+    _nearest_text(blocks)
+    for block in blocks:
         out = _render(block, opts, depth)
         first = block.lines[0] if out is None else (out[0] if out else None)
         changed = out is not None
@@ -133,6 +135,8 @@ def _process(text: str, opts: Options, depth: int) -> str:
             prev_out, prev_changed = None, False
         elif out != []:
             prev_out, prev_changed = (block.lines if out is None else out)[-1], changed
+        else:
+            prev_changed = True  # a removed block gives the surviving blocks a new neighbour
         if out is None:
             entries.extend((line, False) for line in block.lines)
         elif not out:
@@ -147,6 +151,23 @@ def _process(text: str, opts: Options, depth: int) -> str:
     for line in _normalize(entries):
         final.extend(stash.restore(line))
     return "\n".join(final)
+
+
+def _nearest_text(blocks: list[Block]) -> None:
+    """Record each block's nearest non-blank line before and after it (``prev_text``, ``next_text``).
+
+    Rules use them to recognize their own earlier output, such as code labels around a block.
+    """
+    last = None
+    for block in blocks:
+        block.meta["prev_text"] = last
+        if block.kind != "blank":
+            last = block.lines[-1]
+    following = None
+    for block in reversed(blocks):
+        block.meta["next_text"] = following
+        if block.kind != "blank":
+            following = block.lines[0]
 
 
 def _exposed_at_boundary(first: str, prev_out: str | None) -> bool:
@@ -178,7 +199,10 @@ def _inline_fn(opts: Options):
 def _render(block: Block, opts: Options, depth: int) -> list[str] | None:
     """Replacement lines for *block*, ``[]`` to remove it, or None when nothing changed."""
     if block.kind == "blockquote":
+        # The contents already went through this pipeline, guard included; dropping the markers
+        # only reveals structure that was there, so the guard does not apply (ADR 0003).
         out = _render_quote(block, opts, depth)
+        return None if out is None or out == block.lines else out
     else:
         inline = _inline_fn(opts)
         rule = rules.block_rule(block.kind)

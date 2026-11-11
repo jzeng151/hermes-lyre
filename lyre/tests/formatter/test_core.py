@@ -406,3 +406,41 @@ def test_block_rules_can_read_protected_spans(temp_rules):
     add_block("code", lambda b, o, inline: (seen.append(o.span(b.lines[0].strip())), None)[1])
     format_for_speech("```py\nx = 1\n```\n\n```json\n{}\n[]\n```\n\n```py\nopen", profile="plain")
     assert seen == ["```py\nx = 1\n```", "```json\n{}\n[]\n```", "```py\nopen"]
+
+
+def test_quote_output_is_not_guarded_line_by_line(temp_rules):
+    _, add_block = temp_rules
+    add_block("blockquote", lambda b, o, inline: list(b.meta["inner_out"]))
+    assert format_for_speech("> ```py\n> **code**\n> ```", profile="plain") == "```py\n**code**\n```"
+
+
+def test_code_span_does_not_cross_a_heading(temp_rules):
+    _strip(temp_rules)
+    _, add_block = temp_rules
+    seen = []
+    add_block("heading", lambda b, o, inline: (seen.append(b.lines[0]), None)[1])
+    out = format_for_speech("`unclosed\n# **Heading** `\n**prose** `", profile="plain")
+    assert seen == ["# **Heading** `"]
+    assert "**Heading**" not in out
+
+
+def test_blocks_know_their_nearest_text(temp_rules):
+    _, add_block = temp_rules
+    seen = []
+    add_block("code", lambda b, o, inline: (seen.append((b.meta["prev_text"], b.meta["next_text"])), None)[1])
+    format_for_speech("Python code, 1 line:\n```py\nx = 1\n```\nEnd of code.", profile="plain")
+    assert seen == [("Python code, 1 line:", "End of code.")]
+
+
+def test_removed_block_counts_as_changed_boundary(temp_rules):
+    _, add_block = temp_rules
+    add_block("rule", lambda b, o, inline: [])
+    add_block("table", lambda b, o, inline: ["table converted"])
+    once = format_for_speech("a|b\n***\n---|---\n1|2", profile="plain")
+    assert format_for_speech(once, profile="plain") == once
+
+
+def test_continuation_line_fence_is_bounded_by_its_item(temp_rules):
+    _strip(temp_rules)
+    text = "- Example:\n\n  ```py\n  **literal**\n- **next**\n\n**prose**"
+    assert format_for_speech(text, profile="plain") == "- Example:\n\n  ```py\n  **literal**\n- next\n\nprose"
