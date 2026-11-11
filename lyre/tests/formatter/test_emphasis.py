@@ -115,6 +115,38 @@ def test_non_latin_reply_with_quoted_english_code_gets_no_english():
         assert "(removed:" not in out and "Quote:" not in out
 
 
+def test_long_whitespace_heading_is_linear():
+    import time
+    start = time.perf_counter()
+    assert plain("# a" + " " * 20000 + "b") == "a" + " " * 20000 + "b."
+    assert time.perf_counter() - start < 0.5
+
+
+@pytest.mark.parametrize("text,expected", [("# Title ##", "Title."), ("# Title#", "Title#."), ("# ##", ""),
+                                           ("# C# ###", "C#.")])
+def test_closing_hashes(text, expected):
+    assert plain(text + "\n\nx") == (expected + "\n\nx" if expected else "x")
+
+
+def test_heading_over_literal_underline_stays_separate():
+    once = plain("# Title\n===")
+    assert once == "Title.\n\n==="
+    assert plain(once) == once
+
+
+def test_unclosed_quoted_fence_keeps_quote():
+    text = "> ```py\n> x\n\n```\n**literal**\n```"
+    once = plain(text)
+    assert once.startswith("> ```py\n> x")
+    assert "**literal**" in once
+    assert plain(once) == once
+
+
+@pytest.mark.parametrize("text", ["**────**\ntext", "*▀▀▀▀*\ntext"])
+def test_drawing_exposed_by_emphasis_removed(text):
+    assert plain(text) == "text"
+
+
 def test_nested_quote_plain_and_full():
     assert plain("> a\n> > b") == "a\n\nb"
     assert plain("> a", verbosity="full") == "Quote:\na\nEnd of quote."
