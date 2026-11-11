@@ -21,11 +21,11 @@ def blockquote(block: Block, opts: Options, inline: InlineFn) -> list[str] | Non
         # gets spoken, a break above gets removed), so quoted code or math always stays quoted.
         # The code itself is never rewritten, so unwrapping it would give a listener nothing.
         return None
-    inner = list(block.meta["inner_out"])
-    while inner and not inner[0].strip():
-        inner.pop(0)
-    while inner and not inner[-1].strip():
-        inner.pop()
+    start = 0
+    while start < len(inner_out) and not inner_out[start].strip():
+        start += 1
+    inner = inner_out[start:]
+    # Keep trailing blanks: they stop inline delimiters reaching the next paragraph or label.
     if not inner:
         return [""]  # a blank line keeps the blocks around the empty quote apart
     if opts.verbosity == "full" and opts.latin:
