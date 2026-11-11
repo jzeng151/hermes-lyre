@@ -252,6 +252,9 @@ def _escaped(line: str, index: int) -> bool:
 
 
 def _protect_code_spans(line: str, stash: Stash) -> str:
+    # Backticks inside an HTML tag (an attribute value) are not code-span delimiters.
+    tags = [m.span() for m in HTML_TAG_MULTILINE_RE.finditer(line)] if "<" in line else []
+    tag_ends = [end for _, end in tags]
     runs: list[tuple[int, int]] = []
     i = 0
     while True:
@@ -261,7 +264,9 @@ def _protect_code_spans(line: str, stash: Stash) -> str:
         k = j
         while k < len(line) and line[k] == "`":
             k += 1
-        runs.append((j, k - j))
+        t = bisect.bisect_right(tag_ends, j)
+        if not (t < len(tags) and tags[t][0] < j):
+            runs.append((j, k - j))
         i = k
     if len(runs) < 2:
         return line
@@ -427,8 +432,14 @@ def _sub_outside_urls(pattern: re.Pattern, kind: str, line: str, stash: Stash, s
     return pattern.sub(put, line)
 
 
+REF_DEF_RE = re.compile(r"^( {0,3}\[[^\]\n]+\]:[ \t]*)(<[^>\n]*>|\S+)")
+
+
 def protect_inline(line: str, stash: Stash) -> str:
     """Protect inline code, inline display math, escapes, HTML tags, link targets and URLs."""
+    ref = REF_DEF_RE.match(line)
+    if ref:  # a reference definition (``[id]: /path``): its destination is a link target
+        line = ref.group(1) + stash.put("t", ref.group(2)) + line[ref.end():]
     if "`" in line:
         line = _protect_code_spans(line, stash)
     if "$$" in line:

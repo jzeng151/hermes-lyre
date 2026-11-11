@@ -13,7 +13,7 @@ from . import rules
 from .blocks import ATX_RE, QUOTE_RE, segment, starts_block, syntax_categories
 from .model import (EMOJI_POLICIES, PROFILES, TABLE_STYLES, VERBOSITIES, Block, EmojiPolicy, Options, Profile,
                     TableStyle, Verbosity)
-from .spans import (CLOSE, OPEN, TOKEN_RE, Stash, is_block_token_line, protect_blocks, protect_code_spans,
+from .spans import (CLOSE, OPEN, TOKEN_RE, Stash, indent_width, is_block_token_line, protect_blocks, protect_code_spans,
                     protect_inline)
 
 MAX_BYTES = 200_000
@@ -251,6 +251,10 @@ def _inline_lines(lines: list[str], inline) -> list[str]:
         new = inline(line)
         if new.strip() or not line.strip():
             out.append(new)
+    if out and lines and out[0] is not lines[0] and indent_width(out[0]) >= 4 and indent_width(lines[0]) < 4:
+        # A removed first line left an indented continuation leading the block, which the next
+        # pass would read as code. Indentation of a continuation line carries no meaning.
+        out[0] = out[0].lstrip(" \t")
     return out
 
 
