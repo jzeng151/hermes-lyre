@@ -216,3 +216,11 @@ def test_review_round_five_list_context(text, kept):
     once = plain(text)
     assert kept in once.split("\n")
     assert plain(once) == once
+
+
+@pytest.mark.parametrize("text", ["- item\n> $$x$$\n\n    **code**", "- item\n> ```\n> x\n> ```\n\n    **code**"])
+def test_quoted_code_or_math_after_text_stays_quoted(text):
+    once = plain(text)
+    assert "    **code**" in once.split("\n")
+    assert any(line.startswith(">") for line in once.split("\n"))
+    assert plain(once) == once

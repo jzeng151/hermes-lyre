@@ -159,23 +159,30 @@ def _emit(lst: _List, opts: Options, inline: InlineFn, out: list[str]) -> None:
                     out.append(pad + text)
 
 
-def _unclosed_fence(lst: _List, opts: Options) -> bool:
-    """True when an item's code is a fence with no closing line inside the item.
+def _is_unclosed(token: str, opts: Options) -> bool:
+    value = opts.span(token) if opts.span and is_block_token_line(token) else None
+    if value is None or token.strip()[1] != "f":
+        return False
+    lines = value.split("\n")
+    fence = lines[0].lstrip()[:3]
+    last = lines[-1].strip()
+    return len(lines) < 2 or not last.startswith(fence) or last != last[0] * len(last)
 
-    Moving such a fence to its own output line would let it swallow everything after the list
-    on the next pass, so the list is left as written.
+
+def _unclosed_fence(lst: _List, opts: Options) -> bool:
+    """True when an item holds a fence with no closing line inside the item.
+
+    Fences on the item line and on continuation lines count alike: without the list container,
+    such a fence would swallow everything after it on the next pass, so the list stays as written.
     """
     for item in lst.items:
-        raw = item.text.strip()
-        value = opts.span(raw) if opts.span and is_block_token_line(raw) else None
-        if value is not None and raw[1] == "f":
-            lines = value.split("\n")
-            fence = lines[0].lstrip()[:3]
-            last = lines[-1].strip()
-            if len(lines) < 2 or not last.startswith(fence) or last != last[0] * len(last):
-                return True
-        if any(kind == "list" and _unclosed_fence(value, opts) for kind, value in item.extras):
+        if _is_unclosed(item.text.strip(), opts):
             return True
+        for kind, value in item.extras:
+            if kind == "list" and _unclosed_fence(value, opts):
+                return True
+            if kind == "line" and _is_unclosed(value, opts):
+                return True
     return False
 
 

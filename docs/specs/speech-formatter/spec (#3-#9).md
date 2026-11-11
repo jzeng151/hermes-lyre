@@ -257,7 +257,7 @@ End of code.
 - `> text` -> `text` (the marker is removed; nested `> >` too). The contents are processed as a container (processing step 3) on both profiles; on the `markdown` profile the markers are then put back on every output line of the quote, so only the quote's contents change.
 - `full`: a `Quote:` line before the quote's contents and an `End of quote.` line after them (plain profile only). The announcement is on its own line, never prefixed to the first line, so labels inside the quote (such as an R7 code label) stay recognizable on the next pass.
 - Removing the markers is plain only; container processing of the contents runs on both profiles.
-- The markers stay (the contents are still processed) when the quote's processed contents hold an unclosed fence, an indented fence opener, an unclosed `$$`, a list marker or indented code, because removing them would change how the rest of the reply parses (a list anywhere above would take indented code over as item text).
+- The markers stay (the contents are still processed) when the quote's processed contents hold an unclosed fence, an indented fence opener, an unclosed `$$`, a list marker or indented code, or when any text comes before a quote that holds fenced code or display math, because removing them would change how the rest of the reply parses (a list anywhere above would take indented code over as item text).
 - An empty quote becomes a blank line, so the blocks around it stay apart.
 - When text sits directly above the quote, the unwrapped contents start after a blank line, so they stay a separate block on the next pass and quoted prose is not merged into the paragraph above. The quote's contents keep their own spacing; only the outer pass trims nothing inside them.
 
