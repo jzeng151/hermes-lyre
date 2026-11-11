@@ -92,3 +92,26 @@ def test_shrunk_fuzz_inputs_are_idempotent(text, profile):
                                           (1588, "plain"), (1588, "markdown"), (1911, "plain")])
 def test_reported_fuzz_seeds_are_idempotent(seed, profile):
     twice(fuzzgen.soup(seed), profile=profile)
+
+
+# Second review round on the follow-ups.
+def test_unclosed_strong_with_many_single_pairs_is_linear():
+    import time
+    start = time.perf_counter()
+    format_for_speech("**" + "a*b*" * 200 + "z", profile="plain")
+    assert time.perf_counter() - start < 0.5
+    assert twice("**a *b* c**", profile="plain") == "a b c"
+
+
+def test_math_starting_in_a_destination_does_not_hide_code():
+    assert "`**code**`" in twice("[a](/p$$x) `**code**` $$ **prose**", profile="plain")
+
+
+def test_tabs_inside_quoted_code_are_kept():
+    out = twice(">\t```text\n>\t>\tvalue\n>\t```", profile="plain")
+    assert ">\tvalue" in out
+
+
+def test_break_inside_an_item_keeps_the_list():
+    out = twice("- parent\n  * * *\n\n    **continuation prose**", profile="plain")
+    assert "**continuation prose**" not in out

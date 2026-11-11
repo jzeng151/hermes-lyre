@@ -19,9 +19,10 @@ from . import register_inline_rule
 _EMPHASIS = [
     re.compile(r"\*\*\*(?=\S)([^*\n]+?)(?<=\S)\*\*\*"),
     # Preserve single-emphasis children touching bold edges after emoji removal.
-    # Strong emphasis may also hold an isolated literal marker (``**Edit *.py files**``,
-    # ``__snake_case__``); a run of two never sits inside it.
-    re.compile(r"\*\*(?=\S)((?:[^*\n]|\*(?=[^\s*])[^*\n]+?(?<=[^\s*])\*|(?<!\*)\*(?!\*))+?)(?<=\S)\*\*"),
+    # Strong emphasis may hold single markers, paired (``**a *b* c**``) or literal
+    # (``**Edit *.py files**``), but never a run of two. The two alternatives are disjoint, so
+    # an unclosed span cannot backtrack exponentially.
+    re.compile(r"\*\*(?=\S)((?:[^*\n]|(?<!\*)\*(?!\*))+?)(?<=\S)\*\*"),
     re.compile(r"(?<![\w.])__(?=\S)((?:[^_\n]|(?<!_)_(?!_))+?)(?<=\S)__(?=[\s,;:!?)\]]|$)"),
     # Single asterisks may sit inside a word (``un*believ*able``, CJK text) but not next to a
     # digit, so arithmetic such as ``2*3*4`` keeps its operators.

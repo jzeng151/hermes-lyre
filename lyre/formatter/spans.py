@@ -149,12 +149,14 @@ def _code_threshold(line: str, prev_blank: bool, list_col: int | None) -> int | 
 _ENDS_LIST_RE = re.compile(r"^ {0,3}(?:#{1,6}(?:[ \t]|$)|>|(?:[-*_][ \t]*){3,}$)")
 
 
-_BREAK_RE = re.compile(r"^ {0,3}([-*_])(?:[ \t]*\1){2,}[ \t]*$")
+_BREAK_RE = re.compile(r"^[ \t]*([-*_])(?:[ \t]*\1){2,}[ \t]*$")
 
 
 def _track_list(line: str, prev_blank: bool, list_col: int | None) -> int | None:
     if _BREAK_RE.match(line):
-        return None  # ``* * *`` looks like an item but is a thematic break: it ends any list
+        # ``* * *`` looks like an item but is a thematic break: inside the item's text it belongs
+        # to the item; left of it, it ends the list.
+        return list_col if list_col is not None and indent_width(line) >= list_col else None
     col = list_content_column(line)
     if col is not None:
         return col
@@ -256,7 +258,7 @@ def protect_blocks(lines: list[str], stash: Stash) -> list[str]:
         list_col = _track_list(line, prev_blank, list_col)
         if list_col is None:
             columns.clear()
-        elif list_content_column(line) is not None:
+        elif list_content_column(line) is not None and not _BREAK_RE.match(line):
             _open_level(columns, line, list_col)
         out.append(line)
         prev_blank = not line.strip()
@@ -310,7 +312,9 @@ def _protect_code_spans(line: str, stash: Stash) -> str:
         return line
     targets = _link_target_ranges(line) if "](" in line else []
     target_ends = [end for _, end in targets]
-    maths = [m.span() for m in INLINE_MATH_RE.finditer(line)] if "$$" in line else []
+    # Only math that the math pass will protect: never a range reaching into a destination or URL.
+    maths = [m.span() for m in INLINE_MATH_RE.finditer(line)
+             if not any(m.start() < e and m.end() > s for s, e in [*targets, *urls])] if "$$" in line else []
     math_ends = [end for _, end in maths]
     by_len: dict[int, list[int]] = {}
     for idx, (_, size) in enumerate(runs):
