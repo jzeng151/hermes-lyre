@@ -9,5 +9,6 @@ Decisions made while building Lyre, one file per decision, named with the issue 
 | [0003](0003-guard-scope-and-underscore-emphasis%20%28%234%29.md) | Quotes skip the guard, block rules are guarded whole, underscore emphasis needs a clear end | #4 | Accepted |
 | [0004](0004-emoji-by-presentation%20%28%235%29.md) | Match emoji by presentation, not by Unicode block | #5 | Accepted |
 | [0005](0005-hook-failure-logging%20%28%2310%29.md) | Log hook failures with the traceback, never the reply | #10 | Accepted |
+| [0006](0006-formatting-time-budget%20%28%2310%29.md) | Raise the 20 KB formatting budget on CI to 100 ms | #10, #3 | Accepted |
 
 Format: Context, Decision, Consequences (after Michael Nygard).

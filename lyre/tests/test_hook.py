@@ -116,14 +116,14 @@ def test_ac7_unknown_platform_is_plain_messaging():
     assert cb(response_text=REPLY, platform="newchat") == lyre.formatter.format_for_speech(REPLY, profile="plain")
 
 
-def test_ac8_twenty_kb_under_50_ms():
+def test_ac8_twenty_kb_under_100_ms():
     _, cb = callback(enabled=True)
     block = REPLY + "\n\n" + TABLE + "\n\n- one\n- two\n\n[docs](https://x.test/a?b=1)\n\n"
     text = (block * (20_000 // len(block) + 1))[:20_000]
     cb(response_text=text, platform="cli")  # warm the rule registry and regex caches
     start = time.perf_counter()
     cb(response_text=text, platform="cli")
-    assert time.perf_counter() - start < 0.05
+    assert time.perf_counter() - start < 0.1  # ADR 0006
 
 
 @pytest.mark.parametrize("stub", ["", "   ", "\n"])

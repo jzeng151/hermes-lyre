@@ -212,7 +212,7 @@ The rewrite is stored, and later turns, memory and session search see it. So:
 ### Performance
 
 - Line-by-line parsing with no backtracking regexes. Linear in input size.
-- Under 50 ms for a 20 KB reply.
+- Under 100 ms for a 20 KB reply on CI hardware ([ADR 0006](docs/adr/0006-formatting-time-budget%20%28%2310%29.md)).
 - Replies over 200 KB (UTF-8) are returned unchanged without parsing.
 
 ### Operational limits

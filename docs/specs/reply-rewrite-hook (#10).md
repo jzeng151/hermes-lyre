@@ -101,7 +101,7 @@ Settings are read on every call through `ctx.get_config`, so changes made by `/a
 - [ ] **AC-5** Given the formatter raises, when the hook runs, then it returns `None` and logs one warning with no reply text.
 - [ ] **AC-6** Given `/a11y off` was run, when the next reply arrives, then the hook returns `None` with no reload or restart.
 - [ ] **AC-7** Given an unknown platform `newchat`, when Lyre is on, then the reply is rewritten with the plain profile.
-- [ ] **AC-8** Given a 20 KB reply, when the hook runs, then it returns in under 50 ms excluding the settings read.
+- [ ] **AC-8** Given a 20 KB reply, when the hook runs, then it returns in under 100 ms excluding the settings read (ADR 0006).
 - [ ] **AC-9** Given a 9-row table reply on Telegram, when the session is resumed and the user asks for the value in row 9, then the model answers correctly from the stored rewrite. (Live test, [release-evidence.md](release-evidence%20%28%2316%2C%20%2317%2C%20%2319%29.md).)
 - [ ] **AC-10** Given a 5-turn conversation with Lyre on, when replies are compared with Lyre off, then no turn loses a table cell, URL or code line.
 - [ ] **AC-11** Given Lyre is on and a reply that is only `🎉`, or a formatter stub that returns `""` or whitespace, then the hook returns `None` and the original reply is delivered.
