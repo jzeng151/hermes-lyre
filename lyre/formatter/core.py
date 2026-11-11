@@ -10,7 +10,7 @@ from dataclasses import replace
 from typing import cast
 
 from . import rules
-from .blocks import QUOTE_RE, segment, syntax_categories
+from .blocks import ATX_RE, QUOTE_RE, segment, starts_block, syntax_categories
 from .model import (EMOJI_POLICIES, PROFILES, TABLE_STYLES, VERBOSITIES, Block, EmojiPolicy, Options, Profile,
                     TableStyle, Verbosity)
 from .spans import (CLOSE, OPEN, TOKEN_RE, Stash, is_block_token_line, protect_blocks, protect_code_spans,
@@ -96,7 +96,7 @@ def _protect(text: str, stash: Stash) -> list[str]:
     """Step 2 for one container level. Quote lines are protected by their own container pass."""
     lines = protect_blocks(text.split("\n"), stash)
     skip = lambda line: bool(is_block_token_line(line) or QUOTE_RE.match(line))  # noqa: E731
-    lines = protect_code_spans(lines, stash, skip)
+    lines = protect_code_spans(lines, stash, skip, starts_block, lambda line: bool(ATX_RE.match(line)))
     return [line if skip(line) else protect_inline(line, stash) for line in lines]
 
 
@@ -132,6 +132,7 @@ def _process(text: str, opts: Options, depth: int) -> str:
     for i, block in enumerate(blocks):
         block.meta["prev"] = blocks[i - 1].lines[-1] if i else None
         block.meta["next"] = blocks[i + 1].lines[0] if i + 1 < len(blocks) else None
+    _nearest_text(blocks)
     prev_out, prev_changed = None, False  # last rendered line of the previous block
     for block in blocks:
         out = _render(block, opts, depth)
@@ -143,6 +144,8 @@ def _process(text: str, opts: Options, depth: int) -> str:
             prev_out, prev_changed = None, False
         elif out != []:
             prev_out, prev_changed = (block.lines if out is None else out)[-1], changed
+        else:
+            prev_changed = True  # a removed block gives the surviving blocks a new neighbour
         if out is None:
             entries.extend((line, False) for line in block.lines)
         elif not out:
@@ -159,6 +162,23 @@ def _process(text: str, opts: Options, depth: int) -> str:
     for line in _normalize(entries):
         final.extend(stash.restore(line))
     return "\n".join(final)
+
+
+def _nearest_text(blocks: list[Block]) -> None:
+    """Record each block's nearest non-blank line before and after it (``prev_text``, ``next_text``).
+
+    Rules use them to recognize their own earlier output, such as code labels around a block.
+    """
+    last = None
+    for block in blocks:
+        block.meta["prev_text"] = last
+        if block.kind != "blank":
+            last = block.lines[-1]
+    following = None
+    for block in reversed(blocks):
+        block.meta["next_text"] = following
+        if block.kind != "blank":
+            following = block.lines[0]
 
 
 def _exposed_at_boundary(first: str, prev_out: str | None) -> bool:
@@ -274,8 +294,9 @@ def _normalize(entries: list) -> list[str]:
                 j += 1
             run = [e[0] for e in entries[i:j] if e is not _REMOVED]
             if touched:
+                # A removal never joins its neighbours: between two blocks one blank line stays.
                 at_edge = i == 0 or j == len(entries)
-                run = [] if at_edge else run[:1]
+                run = [] if at_edge else [""]
             out.extend(run)
             i = j
             continue
