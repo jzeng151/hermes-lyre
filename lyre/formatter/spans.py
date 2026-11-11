@@ -218,6 +218,8 @@ def protect_blocks(lines: list[str], stash: Stash) -> list[str]:
             continue
         fence = FENCE_OPEN_RE.match(line)
         if fence and not (fence.group(2)[0] == "`" and "`" in fence.group(3)):
+            if list_col is not None and indent_width(line) < list_col:
+                list_col = None  # a fence is never a lazy continuation: left of the item's text it ends the list
             if list_col is not None and indent_width(line) >= list_col:
                 end = _item_fence_end(lines, i, fence.group(2), list_col)  # bounded by its item
             else:
@@ -228,6 +230,8 @@ def protect_blocks(lines: list[str], stash: Stash) -> list[str]:
         if line.lstrip().startswith("$$"):
             end = _math_end(lines, i)
             if end is not None:
+                if list_col is not None and prev_blank and indent_width(line) < list_col:
+                    list_col = None  # like outdented text after a blank line, it ends the list
                 _stash_lines(out, lines, i, end, "m", stash)
                 i, prev_blank = end + 1, False
                 continue

@@ -701,3 +701,13 @@ def test_guard_does_not_expose_display_math_opener(temp_rules):
     assert once.startswith("# $$")
     assert "**literal**" in once
     assert format_for_speech(once, profile="plain") == once
+
+
+@pytest.mark.parametrize("block", ["```\nx\n```", "$$\nx\n$$"])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_outdented_fence_or_math_after_a_list_ends_it(block, profile):
+    # Found by the property tests: the indented line after the block is code, not list text.
+    text = f"- a\n\n{block}\n\n    p(**x**)"
+    once = format_for_speech(text, profile=profile)
+    assert "    p(**x**)" in once.split("\n")
+    assert format_for_speech(once, profile=profile) == once
