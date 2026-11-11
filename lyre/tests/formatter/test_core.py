@@ -471,3 +471,11 @@ def test_spaced_break_ends_a_list(temp_rules):
     add_block("rule", lambda b, o, inline: (seen.append(b.lines), None)[1])
     format_for_speech("- item\n* * *\nmore", profile="plain")
     assert seen == [["* * *"]]
+
+
+def test_break_inside_item_content_stays_in_the_list(temp_rules):
+    _, add_block = temp_rules
+    seen = []
+    add_block("list", lambda b, o, inline: (seen.append(b.lines), None)[1])
+    format_for_speech("- a\n  ---\n- b", profile="plain")
+    assert seen == [["- a", "  ---", "- b"]]
