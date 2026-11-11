@@ -23,7 +23,14 @@ def blockquote(block: Block, opts: Options, inline: InlineFn) -> list[str] | Non
     if not inner:
         return []
     if opts.verbosity == "full" and opts.latin:
-        inner = ["Quote:", *inner, "End of quote."]
+        # Indented code needs a blank line above it to stay code on the next pass.
+        gap = [""] if inner[0][:4] == "    " or inner[0].startswith("\t") else []
+        inner = ["Quote:", *gap, *inner, "End of quote."]
+    prev = block.meta.get("prev")
+    if prev is not None and prev.strip():
+        # Keep the quote's contents a separate block from the text above, so a quoted
+        # indented code block is still code on the next pass and prose is not merged.
+        inner = ["", *inner]
     return inner
 
 
