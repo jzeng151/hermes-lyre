@@ -1,0 +1,3 @@
+Here's the diagram: Image: Architecture diagram, link: https://example.test/arch.png
+
+The source is on GitHub, link: https://github.com/example/repo.

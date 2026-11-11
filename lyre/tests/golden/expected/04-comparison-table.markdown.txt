@@ -1,0 +1,9 @@
+Here's how the three plans compare:
+
+Table, 3 rows, 4 columns: Plan, Price, Storage, Support.
+Row 1: Plan Basic, Price $5, Storage 10 GB, Support Email.
+Row 2: Plan Pro, Price $15, Storage 100 GB, Support Chat.
+Row 3: Plan Team, Price $40, Storage 1 TB, Support Phone.
+End of table.
+
+**Pro** is the best value if you need chat support.

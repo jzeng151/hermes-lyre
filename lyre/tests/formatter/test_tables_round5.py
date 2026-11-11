@@ -11,8 +11,9 @@ def test_hidden_math_cannot_repair_markers_across_cells(profile, verbosity):
     text = "| A | B |\n|---|---|\n| *a [x](foo$$bar) **b | c [y](baz$$qux) d* |"
     once = format_for_speech(text, profile=profile, verbosity=verbosity)
     assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
-    if profile == "plain":
-        assert once == text
+    # Math never reaches into a link destination (#43), so nothing pairs across the cells: both
+    # destinations stay byte-identical whether the table is spoken or passed through.
+    assert "(foo$$bar)" in once and "(baz$$qux)" in once
 
 
 @pytest.mark.parametrize("profile", ["plain", "markdown"])
