@@ -40,7 +40,7 @@ def _strip_closing_hashes(text: str) -> str:
 def headings(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
     if opts.profile != "plain":
         return None
-    if any(m.group(1) in ("t", "q") for line in block.lines for m in TOKEN_RE.finditer(line)):
+    if any(m.group(1) == "q" for line in block.lines for m in TOKEN_RE.finditer(line)):
         # An opaque container can end in code; punctuation would be appended inside it.
         return block.lines
     text = inline(heading_text(block)).strip()
@@ -54,7 +54,13 @@ def headings(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
         # Exposed math can consume a later block; exposed ATX would be rewritten next pass.
         return block.lines
     prev = block.meta.get("prev")
-    return ["", text] if prev is not None and prev.strip() else [text]
+    out = ["", text] if prev is not None and prev.strip() else [text]
+    following = block.meta.get("next")
+    if "`" in text and following is not None and following.strip():
+        # Unprotected backticks are unmatched within the heading. Once it becomes prose,
+        # they must not pair across its former block boundary with the following paragraph.
+        out.append("")
+    return out
 
 
 register_block_rule("heading", headings)
