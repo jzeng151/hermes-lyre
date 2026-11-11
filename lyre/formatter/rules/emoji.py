@@ -103,11 +103,21 @@ def _label(sequence: str, opts: Options) -> str | None:
     return STATUS[base] if opts.latin else sequence
 
 
+def _drop_emptied_wrapper(left: str, right: str) -> tuple[str, str]:
+    """``**🎉**`` with the emoji removed leaves ``****``: drop the emptied delimiter pair too."""
+    marks = left[len(left.rstrip(_DELIMITERS)):]
+    if marks and right.startswith(marks[::-1]):
+        return left[:-len(marks)], right[len(marks):]
+    return left, right
+
+
 def _replace_run(line: str, start: int, end: int, opts: Options) -> tuple[str, str]:
     """Return (new text for the run including spacing, rest of line)."""
     labels = [label for m in SEQUENCE_RE.finditer(line, start, end)
               if (label := _label(m.group(0), opts))]
     left, right = line[:start], line[end:]
+    if not labels:
+        left, right = _drop_emptied_wrapper(left, right)
     left_text, right_text = left.rstrip(" \t"), right.lstrip(" \t")
     if not left.strip():
         left_text = left  # indentation before the first word is kept as written
