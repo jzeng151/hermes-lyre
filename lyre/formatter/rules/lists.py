@@ -9,12 +9,16 @@ Mostly non-Latin replies keep the numbering but get no English words.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import re
 
 from ..model import Block, Options
 from ..blocks import is_thematic_break, syntax_categories
 from ..spans import LIST_ITEM_RE, indent_width, is_block_token_line
 from . import InlineFn, register_block_rule
 from .code import LABEL_RE, already_labelled, labelled
+
+# Match just the opener: destinations and titles may continue on subsequent lines.
+_REF_DEF_START_RE = re.compile(r"^\[[^\]\n]+\]:")
 
 
 @dataclass
@@ -61,12 +65,16 @@ def _parse(lines: list[str]) -> list[_List] | None:
     roots: list[_List] = []
     stack: list[_List] = []
     prev_blank = False
-    for line in lines:
+    for i, line in enumerate(lines):
         # Paired and escaped backticks are already tokens. Any remaining backtick is unmatched
         # in its inline container; dropping item markers could pair it with another item's code.
         if "`" in line:
             return None
         m = LIST_ITEM_RE.match(line)
+        content = line[m.end():] if m else line
+        if _REF_DEF_START_RE.match(content.lstrip()):
+            # Spoken numbering would turn a block definition into prose and break its links.
+            return None
         if m and (is_thematic_break(line) or LIST_ITEM_RE.match(line[m.end():])):
             return None  # ``* * *`` is a break, not an item; ``- - a`` nests on the marker line
         if m:
@@ -92,7 +100,8 @@ def _parse(lines: list[str]) -> list[_List] | None:
             prev_blank = True
             stack[-1].items[-1].extras.append(("blank", ""))
         else:
-            if syntax_categories(line.strip(), None) - {"list"}:
+            # Setext underlines are block syntax only with the preceding nonblank line.
+            if syntax_categories(line.strip(), lines[i - 1] if i else None) - {"list"}:
                 return None
             # After a blank line, return to the item that owns this paragraph (it may sit above a
             # nested list); directly after an item the line is a lazy continuation of it.

@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 
 from .model import Block
-from .spans import LIST_ITEM_RE, block_token_kind, indent_width
+from .spans import FENCE_OPEN_RE, LIST_ITEM_RE, block_token_kind, indent_width, list_content_column
 
 ATX_RE = re.compile(r"^ {0,3}(#{1,6})(?:[ \t]|$)")
 SETEXT_RE = re.compile(r"^ {0,3}(?:=+|-+)[ \t]*$")
@@ -75,8 +75,8 @@ def _take_while(lines: list[str], i: int, keep) -> int:
 
 
 def _item_column(line: str, default: int) -> int:
-    m = LIST_ITEM_RE.match(line)
-    return indent_width(m.group(1)) + len(m.group(2)) + 1 if m and not is_thematic_break(line) else default
+    column = list_content_column(line)
+    return column if column is not None and not is_thematic_break(line) else default
 
 
 def _list_end(lines: list[str], i: int) -> int:
@@ -96,6 +96,36 @@ def _list_end(lines: list[str], i: int) -> int:
         column = _item_column(line, column)
         if not LIST_ITEM_RE.match(line) and indent_width(line) < column and starts_block(line):
             break  # a heading or quote left of the item's text is outside the list
+        j += 1
+    return j
+
+
+def _quote_end(lines: list[str], i: int) -> int:
+    """Include lazy paragraph continuations, but never lazily continue a closed block."""
+    j, paragraph, fence = i, False, None
+    while j < len(lines):
+        line = lines[j]
+        quote = QUOTE_RE.match(line)
+        if quote:
+            body = line[quote.end():].removeprefix(" ")
+            while nested := QUOTE_RE.match(body):
+                body = body[nested.end():].removeprefix(" ")
+            if fence is not None:
+                stripped = body.strip()
+                if len(stripped) >= len(fence) and stripped == fence[0] * len(stripped):
+                    fence = None
+                paragraph = False
+            else:
+                opening = FENCE_OPEN_RE.match(body)
+                if opening and indent_width(body) < 4:
+                    fence = opening.group(2)
+                    paragraph = False
+                else:
+                    paragraph = bool(body.strip()) and not (
+                        starts_block(body) or SETEXT_RE.match(body)
+                        or (not paragraph and indent_width(body) >= 4))
+        elif not paragraph or not line.strip() or starts_block(line) or SETEXT_RE.match(line) or _is_table_start(lines, j):
+            break
         j += 1
     return j
 
@@ -120,7 +150,7 @@ def _one_block(lines: list[str], i: int) -> tuple[Block, int]:
     if token_kind:
         return Block(token_kind, [line], {"token_kind": token_kind}), i + 1
     if QUOTE_RE.match(line):
-        j = _take_while(lines, i, lambda s: bool(QUOTE_RE.match(s)))
+        j = _quote_end(lines, i)
         return Block("blockquote", lines[i:j]), j
     atx = ATX_RE.match(line)
     if atx:

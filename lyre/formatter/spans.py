@@ -90,7 +90,7 @@ def marker_gap(m: re.Match) -> int:
     return len(line[:m.end(3)].expandtabs(4)) - len(line[:m.start(3)].expandtabs(4))
 
 
-def _list_content_column(line: str) -> int | None:
+def list_content_column(line: str) -> int | None:
     m = LIST_ITEM_RE.match(line)
     if not m:
         return None
@@ -148,7 +148,7 @@ _ENDS_LIST_RE = re.compile(r"^ {0,3}(?:#{1,6}(?:[ \t]|$)|>|(?:[-*_][ \t]*){3,}$)
 
 
 def _track_list(line: str, prev_blank: bool, list_col: int | None) -> int | None:
-    col = _list_content_column(line)
+    col = list_content_column(line)
     if col is not None:
         return col
     if list_col is None or not line.strip() or indent_width(line) >= list_col:
@@ -199,10 +199,17 @@ def protect_blocks(lines: list[str], stash: Stash) -> list[str]:
     i, prev_blank, list_col = 0, True, None
     while i < len(lines):
         line = lines[i]
-        item_fence = None if _code_threshold(line, prev_blank, list_col) is not None else _item_fence(line)
+        threshold = _code_threshold(line, prev_blank, list_col)
+        if threshold is not None:
+            # Surrounding indentation wins over marker-, fence- and math-shaped literal code.
+            end = _indented_end(lines, i, threshold)
+            _stash_lines(out, lines, i, end, "c", stash)
+            i, prev_blank = end + 1, False
+            continue
+        item_fence = _item_fence(line)
         if item_fence:
             offset, fence = item_fence
-            list_col = _list_content_column(line)
+            list_col = list_content_column(line)
             end = _item_fence_end(lines, i, fence.group(2), list_col)
             out.append(line[:offset] + stash.put("f", "\n".join([line[offset:], *lines[i + 1:end + 1]])))
             i, prev_blank = end + 1, False
@@ -231,12 +238,6 @@ def protect_blocks(lines: list[str], stash: Stash) -> list[str]:
             _stash_lines(out, lines, i, end, "c", stash)
             i, prev_blank = end + 1, False
             continue
-        threshold = _code_threshold(line, prev_blank, list_col)
-        if threshold is not None:
-            end = _indented_end(lines, i, threshold)
-            _stash_lines(out, lines, i, end, "c", stash)
-            i, prev_blank = end + 1, False
-            continue
         list_col = _track_list(line, prev_blank, list_col)
         out.append(line)
         prev_blank = not line.strip()
@@ -256,7 +257,9 @@ def _protect_code_spans(line: str, stash: Stash) -> str:
     # A tag can hide an opener, but not a closer: tag-shaped text after a code opener
     # is literal code. Keep all runs so a closer inside that literal is still available.
     tags = [m.span() for m in HTML_TAG_MULTILINE_RE.finditer(line)] if "<" in line else []
+    urls = [m.span() for m in URL_RE.finditer(line)] if "://" in line else []
     tag_ends = [end for _, end in tags]
+    url_ends = [end for _, end in urls]
     runs: list[tuple[int, int]] = []
     i = 0
     while True:
@@ -283,6 +286,10 @@ def _protect_code_spans(line: str, stash: Stash) -> str:
         if t < len(tags) and pos <= tags[t][0] < start:
             idx += 1
             continue  # a real HTML tag started outside any preceding code span
+        u = bisect.bisect_right(url_ends, start)
+        if u < len(urls) and pos <= urls[u][0] <= start:
+            idx += 1
+            continue  # URL backticks are literal; never split a destination with a token
         same = by_len[size]
         nxt = bisect.bisect_right(same, idx)
         if nxt == len(same):
@@ -368,6 +375,8 @@ def _url_token(match: re.Match, stash: Stash) -> str:
     Counts parentheses once and walks back by index, so a long run of ``)`` stays linear.
     """
     url = match.group(0)
+    if match.start() > 0 and match.string[match.start() - 1] == "<" and match.string.startswith(">", match.end()):
+        return stash.put("u", url)  # angle-delimited destinations have an explicit end
     # A URL used as a link label ends at ``](`` (the target after it is already a token).
     cut = url.find("](")
     if cut != -1 and cut + 2 == len(url):

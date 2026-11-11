@@ -57,6 +57,20 @@ def test_break_before_indented_fence_keeps_code_scope(profile, verbosity):
     assert twice == once
 
 
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+@pytest.mark.parametrize("math", ["$$x$$", "$$\nx\n$$\n\n$$y$$"])
+@pytest.mark.parametrize("code", ["    **code**", "  ```\n**literal**\n  ```"])
+def test_break_before_math_keeps_later_code_scope(profile, verbosity, math, code):
+    text = "- item\n***\n" + math + "\n\n" + code
+    once = format_for_speech(text, profile=profile, verbosity=verbosity)
+    twice = format_for_speech(once, profile=profile, verbosity=verbosity)
+    assert math in once
+    assert code in once
+    assert code in twice
+    assert twice == once
+
+
 def test_removed_drawing_line_keeps_quotes_apart():
     once = format_for_speech("> ```\n──\n> ```\n> **literal**", profile="plain")
     assert "**literal**" in once

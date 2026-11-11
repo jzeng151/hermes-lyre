@@ -102,7 +102,11 @@ def _protect(text: str, stash: Stash) -> list[str]:
     skip = lambda line: bool(is_block_token_line(line) or QUOTE_RE.match(line))  # noqa: E731
     out = []
     for block in segment(lines):
-        if block.kind == "table":
+        if block.kind == "blockquote" and any(not QUOTE_RE.match(line) for line in block.lines):
+            # Lazy continuations lack marker prefixes. Keep this unsupported container whole,
+            # rather than exposing a cross-line code span or inventing quote markers.
+            out.append(stash.put("t", "\n".join(block.lines)))
+        elif block.kind == "table":
             out.extend(protect_cells(line, stash) for line in block.lines)
         else:
             protected = protect_code_spans(block.lines, stash, skip, starts_block, lambda line: bool(ATX_RE.match(line)))
@@ -194,7 +198,7 @@ def _process(text: str, opts: Options, depth: int) -> str:
 
 
 def _before_indented_code(block: Block) -> bool:
-    following = block.meta.get("next_text")
+    following = block.meta.get("next_non_math_text")
     if following is not None and rules.is_code_label(following):
         return True  # after the first pass the code has its label above it
     return following is not None and is_block_token_line(following) and following.strip()[1] in ("c", "f")
@@ -210,11 +214,16 @@ def _nearest_text(blocks: list[Block]) -> None:
         block.meta["prev_text"] = last
         if block.kind != "blank":
             last = block.lines[-1]
-    following = None
+    following = non_math = None
     for block in reversed(blocks):
         block.meta["next_text"] = following
+        block.meta["next_non_math_text"] = non_math
         if block.kind != "blank":
             following = block.lines[0]
+            # Display math preserves list context in protect_blocks; look through it when
+            # deciding whether removing a terminator would expose later protected code.
+            if block.kind != "math":
+                non_math = following
 
 
 def _exposed_at_boundary(first: str, prev_out: str | None) -> bool:
