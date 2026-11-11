@@ -15,10 +15,11 @@ from . import InlineFn, register_block_rule
 
 def blockquote(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
     inner_out = block.meta["inner_out"]
-    if opts.profile != "plain" or _keep_markers(inner_out) or (
-            block.meta.get("prev_text") is not None and _holds_code_or_math(inner_out)):
-        # The core keeps the markers. A quote can be what ends a list above; an exposed fence or
-        # $$ block would not end it, so quoted code or math after other text stays quoted.
+    if opts.profile != "plain" or _keep_markers(inner_out) or _holds_code_or_math(inner_out):
+        # The core keeps the markers. A quote can be what ends a list above, and an exposed fence
+        # or $$ block would not end it; whether a list is above can change between passes (a list
+        # gets spoken, a break above gets removed), so quoted code or math always stays quoted.
+        # The code itself is never rewritten, so unwrapping it would give a listener nothing.
         return None
     inner = list(block.meta["inner_out"])
     while inner and not inner[0].strip():
