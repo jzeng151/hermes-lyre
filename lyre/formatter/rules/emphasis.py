@@ -25,7 +25,8 @@ _EMPHASIS = [
     re.compile(r"(?<![*\d])\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*(?![*\d])"),
     re.compile(r"(?<![\w.])_(?=[^\s_])([^_\n]+?)(?<=[^\s_])_(?=[\s,;:!?)]|$)"),
 ]
-_STRIKE = re.compile(r"(?<!~)~~(?=\S)([^~\n]+?)(?<=\S)~~(?!~)")
+# Exact two-tilde delimiters may contain isolated tildes, never a longer tilde run.
+_STRIKE = re.compile(r"(?<!~)~~(?=\S)((?:[^~\n]|(?<!~)~(?!~))+?)(?<=\S)~~(?!~)")
 
 
 def emphasis(text: str, opts: Options) -> str:
