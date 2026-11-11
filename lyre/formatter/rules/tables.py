@@ -54,8 +54,15 @@ def _original(cell: str, block: Block) -> str:
 def _unsafe_cell(cell: str, block: Block) -> bool:
     # Recheck restored text before link targets can hide unmatched code delimiters. In prose,
     # those delimiters could capture a protected code span in another row on the next pass.
+    restored = _original(cell, block)
+    # Protection can only expose these hazards if their delimiters occur in the original.
+    # Ordinary cells need no second stash/protection pipeline; the complete emitted prose
+    # is still independently restored and validated below, including cross-cell pairing.
+    if not ("`" in restored or "<" in restored or "](" in restored or "$$" in restored
+            or _REFERENCE_RE.match(restored)):
+        return False
     stash = Stash()
-    text = protect_code_spans([_original(cell, block)], stash, lambda line: False)[0]
+    text = protect_code_spans([restored], stash, lambda line: False)[0]
     if "`" in text:
         return True
     # Complete tags, code, escapes and destinations are safe. An exposed '<' may instead
@@ -126,9 +133,10 @@ def tables(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
     protected = protect_code_spans(restored, stash, lambda line: False)
     next_opts = replace(opts, span=stash.value_of)
     checked = []
+    active = inline_rules()
     for line in protected:
         text = protect_inline(line, stash)
-        for rule in inline_rules():
+        for rule in active:
             text = rule(text, next_opts)
         checked.extend(stash.restore(text))
     if checked != restored:
