@@ -501,3 +501,40 @@ def test_on_error_receives_the_failure_and_input_is_returned(temp_rules):
     text = "**x**"
     assert format_for_speech(text, profile="plain", on_error=seen.append) is text
     assert [type(e) for e in seen] == [RuntimeError]
+
+
+def test_many_unmatched_link_openers_stay_linear():
+    text = "](" * 20000
+    start = time.perf_counter()
+    assert format_for_speech(text, profile="plain") is text
+    assert time.perf_counter() - start < 1.0
+
+
+def test_unmatched_openers_past_the_cap_keep_later_destinations(temp_rules):
+    _strip(temp_rules)
+    text = "](" * 40 + " [good](/path/**literal**) and"
+    assert "/path/**literal**" in format_for_speech(text, profile="plain")
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("[label]( <https://example.test/a)b/**literal**>)", "[label]( <https://example.test/a)b/**literal**>)"),
+    ('<span title="**literal**\\">**prose**</span>', '<span title="**literal**\\">prose</span>'),
+    ("\\<b>**x**</b>", "\\<b>x</b>"),
+])
+def test_review_round_seven_protection(temp_rules, text, expected):
+    _strip(temp_rules)
+    assert format_for_speech(text, profile="plain") == expected
+
+
+def test_heading_left_of_item_text_ends_the_list(temp_rules):
+    _, add_block = temp_rules
+    seen = []
+    add_block("heading", lambda b, o, inline: (seen.append(b.lines), None)[1])
+    format_for_speech("- item\n # Title", profile="plain")
+    assert seen == [[" # Title"]]
+
+
+def test_quote_code_keeps_trailing_spaces(temp_rules):
+    _, add_block = temp_rules
+    add_block("blockquote", lambda b, o, inline: list(b.meta["inner_out"]))
+    assert format_for_speech("> ```py\n> x = 1  \n> ```", profile="plain") == "```py\nx = 1  \n```"

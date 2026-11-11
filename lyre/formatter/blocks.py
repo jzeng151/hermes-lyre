@@ -92,8 +92,8 @@ def _list_end(lines: list[str], i: int) -> int:
         if is_thematic_break(line) and indent_width(line) < column:
             break  # ``* * *`` looks like an item but is a break; left of the item's text it ends the list
         column = _item_column(line, column)
-        if not (LIST_ITEM_RE.match(line) or indent_width(line) > 0) and starts_block(line):
-            break
+        if not LIST_ITEM_RE.match(line) and indent_width(line) < column and starts_block(line):
+            break  # a heading or quote left of the item's text is outside the list
         j += 1
     return j
 
