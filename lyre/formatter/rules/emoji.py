@@ -57,7 +57,7 @@ _TEXT_DEFAULT = (
 _MOD = "[\uFE0E\uFE0F]?[\U0001F3FB-\U0001F3FF]?[\U000E0020-\U000E007F]*"
 _UNIT = (
     "(?:[#*0-9]\uFE0F?\u20E3"                      # keycap
-    "|[\U0001F1E6-\U0001F1FF]{2}"                  # flag pair
+    "|[\U0001F1E6-\U0001F1FF]{1,2}"                # flag pair, or a lone regional indicator
     f"|[{_PRESENTATION}]{_MOD}"                     # emoji by default
     f"|[{_TEXT_DEFAULT}]\uFE0F{_MOD}"              # text by default, emoji with U+FE0F
     f"|[{_TEXT_DEFAULT}][\U0001F3FB-\U0001F3FF]{_MOD}"  # or with a skin tone (☝🏽)
@@ -119,6 +119,9 @@ def _drop_emptied_wrapper(
     return left, right
 
 
+_TAG_START_RE = re.compile(r"</?[A-Za-z][A-Za-z0-9-]*$")
+
+
 def _replace_run(
     run: str, left: str, right: str, opts: Options, opening: bool, closing: bool, more_runs: bool,
 ) -> tuple[str, str]:
@@ -130,6 +133,10 @@ def _replace_run(
         # and around it. Adding a gap here would
         # depend on delimiters that the emphasis rule removes later, so a second pass would differ.
         return left + run, right
+    if not labels and left.endswith("[") and right.startswith("]"):
+        # The emoji is a whole bracket label (``[✨]: /path``, ``[🎉](url)``): an empty ``[]``
+        # would stop being link syntax and expose the destination on the next pass.
+        return left + run, right
     if not labels:
         before = left, right
         left, right = _drop_emptied_wrapper(left, right, opening, closing)
@@ -139,7 +146,8 @@ def _replace_run(
     if not left.strip():
         left_text = left  # indentation before the first word is kept as written
     body = " ".join(labels)
-    tight_left = opening or left_text.endswith(tuple(_NO_SPACE_AFTER))
+    # A gap after ``<b`` would turn ``<b✨text>`` into an HTML tag on the next pass.
+    tight_left = opening or left_text.endswith(tuple(_NO_SPACE_AFTER)) or bool(_TAG_START_RE.search(left_text))
     tight_right = closing or right_text.startswith(tuple(_NO_SPACE_BEFORE))
     has_right = bool(right_text) or more_runs
     gap_left = bool(left.strip()) and bool(body or has_right) and not tight_left
