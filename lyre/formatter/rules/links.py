@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 
 from ..model import Options
-from ..spans import OPEN, TOKEN_RE, Stash, protect_inline
+from ..spans import CLOSE, OPEN, TOKEN_RE, Stash, protect_inline
 from . import register_inline_rule
 
 _T = "\ue000t\\d+\ue001"
@@ -35,6 +35,8 @@ def _target_url(value: str) -> str:
 
 def _survives(url: str) -> bool:
     """True when the next pass protects *url* whole as a bare URL, so no rule can change it."""
+    if OPEN in url or CLOSE in url:
+        return False  # already holds a protected span (``<guide>`` as HTML): not a bare URL
     stash = Stash()
     token = protect_inline(url, stash)
     return bool(TOKEN_RE.fullmatch(token)) and stash.value_of(token) == url
