@@ -275,6 +275,8 @@ def _protect_code_spans(line: str, stash: Stash) -> str:
         i = k
     if len(runs) < 2:
         return line
+    targets = _link_target_ranges(line) if "](" in line else []
+    target_ends = [end for _, end in targets]
     by_len: dict[int, list[int]] = {}
     for idx, (_, size) in enumerate(runs):
         by_len.setdefault(size, []).append(idx)
@@ -292,6 +294,10 @@ def _protect_code_spans(line: str, stash: Stash) -> str:
         if u < len(urls) and pos <= urls[u][0] <= start:
             idx += 1
             continue  # URL backticks are literal; never split a destination with a token
+        t = bisect.bisect_right(target_ends, start)
+        if t < len(targets) and pos <= targets[t][0] <= start:
+            idx += 1
+            continue  # a target started before this opener; earlier code still takes precedence
         same = by_len[size]
         nxt = bisect.bisect_right(same, idx)
         if nxt == len(same):
@@ -338,6 +344,23 @@ def _target_end(line: str, k: int) -> int | None:
             depth -= 1
         k += 1
     return None if depth else k
+
+
+def _link_target_ranges(line: str) -> list[tuple[int, int]]:
+    """Target boundaries for code openers, with the same bounded failed searches as protection."""
+    targets, pos, unmatched = [], 0, 0
+    while (j := line.find("](", pos)) >= 0:
+        end = _target_end(line, j + 2)
+        if end is None:
+            unmatched += 1
+            if unmatched > MAX_UNMATCHED_TARGETS:
+                targets.append((pos, len(line)))
+                break
+            pos = j + 2
+        else:
+            targets.append((j + 2, end - 1))
+            pos = end
+    return targets
 
 
 def _protect_link_targets(line: str, stash: Stash, multiline_only: bool = False) -> str:

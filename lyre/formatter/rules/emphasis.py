@@ -18,14 +18,17 @@ from . import register_inline_rule
 
 _EMPHASIS = [
     re.compile(r"\*\*\*(?=\S)([^*\n]+?)(?<=\S)\*\*\*"),
-    re.compile(r"\*\*(?=\S)([^*\n]+?)(?<=\S)\*\*"),
+    # A single-emphasis child may touch either bold edge after emoji removal. Keep its
+    # markers in the capture so the single-emphasis pass can resolve it inside out.
+    re.compile(r"\*\*(?=\S)((?:[^*\n]|\*(?=[^\s*])[^*\n]+?(?<=[^\s*])\*)+?)(?<=\S)\*\*"),
     re.compile(r"(?<![\w.])__(?=\S)([^_\n]+?)(?<=\S)__(?=[\s,;:!?)]|$)"),
     # Single asterisks may sit inside a word (``un*believ*able``, CJK text) but not next to a
     # digit, so arithmetic such as ``2*3*4`` keeps its operators.
     re.compile(r"(?<![*\d])\*(?=[^\s*])([^*\n]+?)(?<=[^\s*])\*(?![*\d])"),
     re.compile(r"(?<![\w.])_(?=[^\s_])([^_\n]+?)(?<=[^\s_])_(?=[\s,;:!?)]|$)"),
 ]
-_STRIKE = re.compile(r"(?<!~)~~(?=\S)([^~\n]+?)(?<=\S)~~(?!~)")
+# Exact two-tilde delimiters may contain isolated tildes, never a longer tilde run.
+_STRIKE = re.compile(r"(?<!~)~~(?=\S)((?:[^~\n]|(?<!~)~(?!~))+?)(?<=\S)~~(?!~)")
 
 
 def paired_delimiter_edges(text: str) -> tuple[set[int], set[int]]:
