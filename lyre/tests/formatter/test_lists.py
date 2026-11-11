@@ -137,3 +137,9 @@ def test_tab_after_marker_counts_as_columns():
     once = plain("-\tfirst\n  - second\n- third")
     assert once == "3 items.\n1, first\n2, second\n3, third"
     assert plain(once) == once
+
+
+def test_outdented_sibling_stays_in_nested_list():
+    once = plain("- parent\n   - first child\n  - second child\n- next")
+    assert once == "2 items.\n1, parent\n  2 sub-items.\n  sub-item 1, first child\n  sub-item 2, second child\n2, next"
+    assert plain(once) == once

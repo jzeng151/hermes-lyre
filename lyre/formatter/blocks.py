@@ -72,8 +72,13 @@ def _take_while(lines: list[str], i: int, keep) -> int:
     return j
 
 
+def _item_column(line: str, default: int) -> int:
+    m = LIST_ITEM_RE.match(line)
+    return indent_width(m.group(1)) + len(m.group(2)) + 1 if m and not is_thematic_break(line) else default
+
+
 def _list_end(lines: list[str], i: int) -> int:
-    j = i + 1
+    j, column = i + 1, _item_column(lines[i], 2)
     while j < len(lines):
         line = lines[j]
         if not line.strip():
@@ -84,6 +89,9 @@ def _list_end(lines: list[str], i: int) -> int:
                 j = k
                 continue
             break
+        if is_thematic_break(line) and indent_width(line) < column:
+            break  # ``* * *`` looks like an item but is a break; left of the item's text it ends the list
+        column = _item_column(line, column)
         if not (LIST_ITEM_RE.match(line) or indent_width(line) > 0) and starts_block(line):
             break
         j += 1
