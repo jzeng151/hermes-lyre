@@ -7,6 +7,6 @@ Pure functions with no I/O and no Hermes imports. Rule modules register into
 from __future__ import annotations
 
 from .core import format_for_speech
-from .rules import decoration, emphasis, headings, quotes  # noqa: F401  (registers the rules)
+from .rules import decoration, emoji, emphasis, headings, quotes  # noqa: F401  (registers the rules)
 
 __all__ = ["format_for_speech"]

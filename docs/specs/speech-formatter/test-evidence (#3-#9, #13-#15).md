@@ -11,7 +11,7 @@ Owner: @jzeng151
 | AC-1 9-row table keeps every cell | Unit test `test_tables.py::test_nine_rows` | | Pending |
 | AC-2 Malformed table byte-identical | Unit tests per pass-through condition | | Pending |
 | AC-3 Long signed URL byte-identical | Unit test, both profiles | | Pending |
-| AC-4 Emoji-only reply | Unit test | | Pending |
+| AC-4 Emoji-only reply | Unit test | `test_emoji.py::test_words_policy[plain-✅🎉-(done)]` | Pass |
 | AC-5 Idempotent | Property test over golden corpus and fuzz inputs | | Pending |
 | AC-6 Code contents byte-identical | Property test | | Pending |
 | AC-7 Protected spans unchanged | Unit tests | | Pending |
