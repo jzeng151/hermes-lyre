@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import replace
 from itertools import groupby
 from typing import cast
@@ -37,13 +38,16 @@ def format_for_speech(
     verbosity: Verbosity = "normal",
     emoji_policy: EmojiPolicy = "words",
     table_style: TableStyle = "sentences",
+    on_error: Callable[[Exception], None] | None = None,
 ) -> str:
     """Return *text* rewritten for a screen reader.
 
     Returns *text* itself when it is empty, over 200,000 UTF-8 bytes, contains Lyre's private
     placeholder characters, mixes line endings, fails anywhere in the pipeline, or would become
     empty. Raises ValueError only for an unknown option value, which is a caller bug, never a
-    property of the reply.
+    property of the reply. *on_error*, when given, receives the exception from a failed pipeline
+    run (called inside the ``except`` block, so a logger can record the traceback); the formatter
+    itself does no I/O and still returns *text*.
     """
     opts = _options(profile, verbosity, emoji_policy, table_style)
     if not isinstance(text, str) or not text.strip() or OPEN in text or CLOSE in text:
@@ -57,7 +61,9 @@ def format_for_speech(
     work = text.replace("\r\n", "\n") if crlf else text
     try:
         out = _process(work, opts, depth=0)
-    except Exception:  # health: allow BLE001 -- contract: any failure returns the reply unchanged; the hook logs
+    except Exception as exc:  # health: allow BLE001 -- contract: any failure returns the reply unchanged
+        if on_error is not None:
+            on_error(exc)  # the caller (the hook) logs it
         return text
     if out == work or not out.strip():
         return text

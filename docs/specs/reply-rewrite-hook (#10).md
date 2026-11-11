@@ -74,7 +74,8 @@ Settings are read on every call through `ctx.get_config`, so changes made by `/a
 
 | Condition | Behavior | Log |
 | --- | --- | --- |
-| Any exception in steps 1 to 5 | Return `None` | One `WARNING`: `lyre: rewrite skipped (<ExceptionType>) turn=<turn_id>`. No reply text, no traceback with locals. |
+| A formatter rule fails (the formatter returns the input and calls `on_error`) | Return `None` | The same `WARNING`, from the `on_error` callback. |
+| Any exception in steps 1 to 5 | Return `None` | One `WARNING` with the traceback (`exc_info=True`): `lyre: rewrite skipped (<ExceptionType>) turn=<turn_id>`. No reply text; tracebacks carry no local variables (ADR 0005). |
 | Formatter took longer than 200 ms | Return the result | One `INFO` with the duration and input length, no reply text. |
 | Invalid setting value | Use the default for that key | Handled in [settings.md](settings%20%28%2311%29.md). |
 | Hook exceeds `plugins.hook_callback_timeout` | Hermes abandons the call and delivers the original | Hermes logs it; nothing for Lyre to do. |
@@ -100,7 +101,7 @@ Settings are read on every call through `ctx.get_config`, so changes made by `/a
 - [ ] **AC-5** Given the formatter raises, when the hook runs, then it returns `None` and logs one warning with no reply text.
 - [ ] **AC-6** Given `/a11y off` was run, when the next reply arrives, then the hook returns `None` with no reload or restart.
 - [ ] **AC-7** Given an unknown platform `newchat`, when Lyre is on, then the reply is rewritten with the plain profile.
-- [ ] **AC-8** Given a 20 KB reply, when the hook runs, then it returns in under 50 ms excluding the settings read.
+- [ ] **AC-8** Given a 20 KB reply, when the hook runs, then it returns in under 100 ms excluding the settings read (ADR 0006).
 - [ ] **AC-9** Given a 9-row table reply on Telegram, when the session is resumed and the user asks for the value in row 9, then the model answers correctly from the stored rewrite. (Live test, [release-evidence.md](release-evidence%20%28%2316%2C%20%2317%2C%20%2319%29.md).)
 - [ ] **AC-10** Given a 5-turn conversation with Lyre on, when replies are compared with Lyre off, then no turn loses a table cell, URL or code line.
 - [ ] **AC-11** Given Lyre is on and a reply that is only `🎉`, or a formatter stub that returns `""` or whitespace, then the hook returns `None` and the original reply is delivered.

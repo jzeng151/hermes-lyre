@@ -279,7 +279,7 @@ End of code.
 - [ ] **AC-6** Given code blocks containing `**`, `|`, `#` and emoji, when formatted, then the code contents are byte-identical.
 - [ ] **AC-7** Given escaped pipes outside tables, backslash escapes, inline code, indented code and an unclosed fence, when formatted, then those spans are unchanged.
 - [ ] **AC-8** Given input over 200,000 bytes, when formatted, then the output is the input object unchanged and the call returns in under 5 ms.
-- [ ] **AC-9** Given a 20 KB reply mixing every rule, when formatted, then it finishes in under 50 ms on CI hardware.
+- [ ] **AC-9** Given a 20 KB reply mixing every rule, when formatted, then it finishes in under 100 ms on CI hardware (ADR 0006).
 - [ ] **AC-10** Given a mostly Latin-script reply that the formatter transformed (not returned unchanged under AC-8 or AC-13), then in every transformed region the output contains no `|---` and no emoji (unless `emoji_policy: keep`); and on the `plain` profile also no paired `**` and no line starting with `#`. Transformed regions exclude protected spans and tables passed through under AC-2 or `table_style: unchanged`. Non-Latin replies are exempt from the emoji clause, because Script detection keeps their status emoji.
 - [ ] **AC-11** Given a reply that is mostly non-Latin script, when formatted, then no English words are inserted.
 - [ ] **AC-12** Given the same reply at `brief`, `normal` and `full`, then all three contain every cell, URL and code line.
