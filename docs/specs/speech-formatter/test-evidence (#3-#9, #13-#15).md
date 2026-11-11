@@ -16,7 +16,7 @@ Owner: @jzeng151
 | AC-6 Code contents byte-identical | Property test | | Pending |
 | AC-7 Protected spans unchanged | Unit tests | | Pending |
 | AC-8 Oversize input skipped | Unit and timing test | `test_core.py::test_oversize_input_is_the_same_object_and_fast` | Pass |
-| AC-9 Under 50 ms for 20 KB | Performance test on CI | | Pending |
+| AC-9 Under 100 ms for 20 KB | Performance test on CI | `test_hook.py::test_ac8_twenty_kb_under_100_ms` | Pass |
 | AC-10 No spoken markup in transformed regions | Property test with the pass-through exemptions | | Pending |
 | AC-11 No English inserted in non-Latin replies | Unit tests (Japanese, Arabic, Russian samples) | | Pending |
 | AC-12 Verbosity keeps all information | Parametrized test | `test_verbosity.py::test_ac12_every_level_keeps_all_information`, `test_levels_only_change_framing` | Pass |
