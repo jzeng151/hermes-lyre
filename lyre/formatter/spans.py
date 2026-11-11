@@ -137,12 +137,35 @@ def _track_list(line: str, prev_blank: bool, list_col: int | None) -> int | None
     return list_col
 
 
+def _item_fence(line: str) -> tuple[int, re.Match] | None:
+    """A fence that opens right after a list marker (``- ```py``): (offset of the fence, match)."""
+    item = LIST_ITEM_RE.match(line)
+    if not item:
+        return None
+    fence = FENCE_OPEN_RE.match(line[item.end():])
+    if not fence or (fence.group(2)[0] == "`" and "`" in fence.group(3)):
+        return None
+    return item.end(), fence
+
+
 def protect_blocks(lines: list[str], stash: Stash) -> list[str]:
-    """Replace fenced code, display math and indented code with one token line each."""
+    """Replace fenced code, display math and indented code with one token line each.
+
+    A fence opened on a list item line keeps the marker: the line becomes ``- <token>``.
+    """
     out: list[str] = []
     i, prev_blank, list_col = 0, True, None
     while i < len(lines):
         line = lines[i]
+        item_fence = _item_fence(line)
+        if item_fence:
+            offset, fence = item_fence
+            end = _fence_end(lines, i, fence.group(2))
+            value = "\n".join([line[offset:], *lines[i + 1:end + 1]])
+            out.append(line[:offset] + stash.put("f", value))
+            list_col = _list_content_column(line)
+            i, prev_blank = end + 1, False
+            continue
         fence = FENCE_OPEN_RE.match(line)
         if fence and not (fence.group(2)[0] == "`" and "`" in fence.group(3)):
             end = _fence_end(lines, i, fence.group(2))

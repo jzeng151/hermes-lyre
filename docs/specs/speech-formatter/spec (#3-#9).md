@@ -146,6 +146,7 @@ Output (`normal`):
 - Numbers are followed by a comma, never a period, so markdown clients do not turn the output back into a list.
 - Nesting is spoken, not shown by depth of indentation: every nested line is indented exactly 2 spaces whatever its level, because 4 spaces would be read as indented code on the next pass and by markdown clients. Level 2 items are `sub-item N`; level 3 and deeper are `level 3 item N` (and `2 level 3 items.` for the count line).
 - A list item's prose continuation lines are re-indented to the item's own output indent (0 or 2 spaces). Fenced and indented code inside an item are protected spans: their lines keep their original bytes, including indentation, and get R7 labels at the item's output indent.
+- An item that is only a code block (a fence opened on the item line, `- ```py`) puts its number on its own line (`1,`) and the code on the next line, so the fence starts a line and stays protected on the next pass.
 - Task lists: `- [x] Done` -> `1, (done) Done`; `- [ ] Open` -> `1, (not done) Open`.
 - A list item's inline code is kept.
 - A single-item list still gets `1 item.`.

@@ -25,7 +25,7 @@ Owner: @jzeng151
 | AC-15 Escapes and inline code stable across passes | Unit test, plain profile | | Pending |
 | AC-16 Braille text unchanged | Unit test | | Pending |
 | AC-17 Display math byte-identical | Unit test, both profiles | | Pending |
-| AC-18 Deep lists stay idempotent | Unit test, two passes | | Pending |
+| AC-18 Deep lists stay idempotent | Unit test, two passes | `test_lists.py::test_ac18_three_levels_with_fence_in_deepest_item` | Pass |
 | AC-19 Emoji-only reply returned unchanged | Unit test | | Pending |
 | AC-20 Unfenced tree lines unchanged | Unit test, two passes | | Pending |
 | AC-21 Indented code labeled once, kept byte-identical, also inside lists | Unit test, two passes | | Pending |
