@@ -228,6 +228,47 @@ def test_emoji_does_not_reinterpret_literal_intraword_markers(text, expected, pr
     assert format_for_speech(out, profile=profile, emoji_policy=policy) == out
 
 
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("policy", ["words", "remove", "keep"])
+@pytest.mark.parametrize("text,removed,kept", [
+    ("Use ~~old🎉~~new instead", "Use (removed: old)new instead",
+     "Use (removed: old🎉)new instead"),
+    ("Use old~~🎉bad~~ instead", "Use old(removed: bad) instead",
+     "Use old(removed: 🎉bad) instead"),
+    ("Use old~~🎉bad🎊~~new instead", "Use old(removed: bad)new instead",
+     "Use old(removed: 🎉bad🎊)new instead"),
+    ("Use old~~🎉~~new instead", "Use old new instead",
+     "Use old(removed: 🎉)new instead"),
+])
+def test_emoji_preserves_intraword_strikethrough(profile, policy, text, removed, kept):
+    expected = kept if policy == "keep" else removed
+    out = format_for_speech(text, profile=profile, emoji_policy=policy)
+    assert out == expected
+    assert format_for_speech(out, profile=profile, emoji_policy=policy) == out
+
+
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("policy", ["words", "remove"])
+@pytest.mark.parametrize("text,plain_out,markdown_out", [
+    ("*🎉hello🎊*world", "helloworld", "*hello*world"),
+    ("old*🎉*new *🎊hi*end", "old new hiend", "old new *hi*end"),
+    ("*🎉* *🎊hi*end", "hiend", "*hi*end"),
+])
+def test_original_pairing_survives_multiple_run_edits(text, plain_out, markdown_out, profile, policy):
+    out = format_for_speech(text, profile=profile, emoji_policy=policy)
+    assert out == (plain_out if profile == "plain" else markdown_out)
+    assert format_for_speech(out, profile=profile, emoji_policy=policy) == out
+
+
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("policy", ["words", "remove"])
+def test_run_between_word_and_emptied_wrapper_keeps_word_boundary(profile, policy):
+    text = "hi🎉**🎉**there"
+    out = format_for_speech(text, profile=profile, emoji_policy=policy)
+    assert out == "hi there"
+    assert format_for_speech(out, profile=profile, emoji_policy=policy) == out
+
+
 @pytest.mark.parametrize("tone", [chr(cp) for cp in range(0x1F3FB, 0x1F400)])
 @pytest.mark.parametrize("profile", ["plain", "markdown"])
 @pytest.mark.parametrize("policy", ["words", "remove", "keep"])
