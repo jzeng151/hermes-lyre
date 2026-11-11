@@ -174,3 +174,14 @@ def test_delimiters_of_neighbouring_spans_are_kept(profile):
     out = format_for_speech("*one*🎉**two**", profile=profile)
     assert out == ("one two" if profile == "plain" else "*one* **two**")
     assert format_for_speech(out, profile=profile) == out
+
+
+@pytest.mark.parametrize("tone", [chr(cp) for cp in range(0x1F3FB, 0x1F400)])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("policy", ["words", "remove", "keep"])
+def test_standalone_skin_tones_follow_emoji_policy(tone, profile, policy):
+    text = f"✅ {tone} ready"
+    expected = text if policy == "keep" else "(done) ready" if policy == "words" else "ready"
+    out = format_for_speech(text, profile=profile, emoji_policy=policy)
+    assert out == expected
+    assert format_for_speech(out, profile=profile, emoji_policy=policy) == out
