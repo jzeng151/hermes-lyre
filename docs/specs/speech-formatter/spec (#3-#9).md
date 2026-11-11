@@ -218,7 +218,7 @@ End of code.
 
 | Input | Output |
 | --- | --- |
-| `` `npm test` `` | `npm test` (plain); unchanged (markdown) |
+| `` `npm test` `` | unchanged, backticks kept (both profiles) |
 | `[docs](https://x.test/a?b=1)` | `docs, link: https://x.test/a?b=1` |
 | `[https://x.test](https://x.test)` | `https://x.test` |
 | `<https://x.test>` | `https://x.test` |
@@ -226,8 +226,9 @@ End of code.
 | bare `https://x.test/...` | unchanged |
 
 - URLs are never shortened, decoded or re-encoded.
-- Inline code containing a backtick (double-backtick spans) keeps its inner text exactly.
-- `markdown` profile: links are still rewritten, because the raw URL is what lets a listener open or copy it; inline code is left to the client.
+- Inline code keeps its backticks on both profiles. The backticks are the protection boundary: without them, a second pass would treat `**literal**` or a status emoji inside the code as prose and change it, breaking AC-5 and AC-6. Whether screen readers announce the backticks is Q5.
+- Inline code containing a backtick (double-backtick spans) keeps its delimiters and inner text exactly.
+- `markdown` profile: links are still rewritten, because the raw URL is what lets a listener open or copy it.
 - `brief` and `full`: no difference.
 
 ### R9. Blockquotes
@@ -247,7 +248,7 @@ End of code.
 - [ ] **AC-7** Given escaped pipes, inline code, indented code and an unclosed fence, when formatted, then those spans are unchanged.
 - [ ] **AC-8** Given input over 200,000 bytes, when formatted, then the output is the input object unchanged and the call returns in under 5 ms.
 - [ ] **AC-9** Given a 20 KB reply mixing every rule, when formatted, then it finishes in under 50 ms on CI hardware.
-- [ ] **AC-10** Given any output outside protected spans, then it contains no `|---` and no emoji (except under `emoji_policy: keep` or `table_style: unchanged`); and on the `plain` profile also no paired `**` and no line starting with `#`.
+- [ ] **AC-10** Given a mostly Latin-script reply that the formatter transformed (not returned unchanged under AC-8 or AC-13), then in every transformed region the output contains no `|---` and no emoji (unless `emoji_policy: keep`); and on the `plain` profile also no paired `**` and no line starting with `#`. Transformed regions exclude protected spans and tables passed through under AC-2 or `table_style: unchanged`. Non-Latin replies are exempt from the emoji clause, because Script detection keeps their status emoji.
 - [ ] **AC-11** Given a reply that is mostly non-Latin script, when formatted, then no English words are inserted.
 - [ ] **AC-12** Given the same reply at `brief`, `normal` and `full`, then all three contain every cell, URL and code line.
 - [ ] **AC-13** Given an internal exception in any rule, when formatted, then the input is returned unchanged.
@@ -271,6 +272,7 @@ End of code.
 - [ ] **Q2** Do Telegram, Discord and Slack screen readers announce rendered lists usefully enough that R5 should be skipped on the `markdown` profile? Decided by #2 and #13.
 - [ ] **Q3** Is the `markdown` platform list in the design doc correct for Teams, Mattermost and Google Chat? Checked against each adapter's `format_message` in #13.
 - [ ] **Q4** Are the table pass-through limits (50 rows, 10 columns, 500 characters) right? Tuned with the golden corpus in #15.
+- [ ] **Q5** Do VoiceOver and NVDA at their default punctuation levels announce the backticks around inline code? If they do, choose another boundary that a second pass can recognize, and update R8, AC-5 and AC-6 together. Decided by the baseline test in #2.
 
 ## Output / Deliverables
 

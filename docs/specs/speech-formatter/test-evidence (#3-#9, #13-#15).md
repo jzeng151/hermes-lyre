@@ -17,7 +17,7 @@ Owner: @jzeng151
 | AC-7 Protected spans unchanged | Unit tests | | Pending |
 | AC-8 Oversize input skipped | Unit and timing test | | Pending |
 | AC-9 Under 50 ms for 20 KB | Performance test on CI | | Pending |
-| AC-10 No spoken markup outside spans | Property test | | Pending |
+| AC-10 No spoken markup in transformed regions | Property test with the pass-through exemptions | | Pending |
 | AC-11 No English inserted in non-Latin replies | Unit tests (Japanese, Arabic, Russian samples) | | Pending |
 | AC-12 Verbosity keeps all information | Parametrized test | | Pending |
 | AC-13 Exception returns input | Unit test with a rule forced to raise | | Pending |
@@ -36,6 +36,7 @@ Owner: @jzeng151
 - [ ] Read five golden outputs aloud with a screen reader and note anything that sounds wrong.
 - [ ] Review the round-trip outputs for each adapter by eye.
 - [ ] Confirm the fence decision from #2 is reflected in R7 and its tests.
+- [ ] Confirm the inline-code backtick finding from #2 (Q5) is reflected in R8 and its tests.
 
 ## Known Gaps
 
