@@ -30,6 +30,7 @@ class _List:
     level: int
     indent: int
     kind: str  # the bullet character or the ordered delimiter; a change starts a new list
+    owner: int = 0  # the column a marker must reach to stay in this list (parent's content column)
     items: list[_Item] = field(default_factory=list)
 
 
@@ -39,7 +40,7 @@ def _kind(marker: str) -> str:
 
 def _new_list(stack: list[_List], roots: list[_List], level: int, indent: int, kind: str) -> _List:
     """Open a list at *level*: a sibling after the list it replaces, or a child of the open item."""
-    lst = _List(level, indent, kind)
+    lst = _List(level, indent, kind, indent if level == 1 else stack[-1].items[-1].column)
     if level == 1:
         roots.append(lst)
     else:
@@ -63,7 +64,9 @@ def _parse(lines: list[str]) -> list[_List] | None:
         m = LIST_ITEM_RE.match(line)
         if m:
             indent, kind = indent_width(m.group(1)), _kind(m.group(2))
-            while stack and indent < stack[-1].indent:
+            # A nested list ends only at a marker left of its parent's content column; a marker
+            # less indented than its siblings but still inside the parent stays in the list.
+            while stack and indent < stack[-1].owner:
                 stack.pop()
             if stack and indent == stack[-1].indent and kind != stack[-1].kind:
                 stack.pop()  # same level, new marker type: a separate list
