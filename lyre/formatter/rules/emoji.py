@@ -137,7 +137,7 @@ def _replace_run(line: str, start: int, end: int, opts: Options) -> tuple[str, s
 
 
 def emoji(text: str, opts: Options) -> str:
-    if opts.emoji_policy == "keep" or not RUN_RE.search(text):
+    if text.isascii() or opts.emoji_policy == "keep" or not RUN_RE.search(text):
         return text
     out = ""
     rest = text
