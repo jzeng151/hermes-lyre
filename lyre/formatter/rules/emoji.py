@@ -125,8 +125,9 @@ def _replace_run(
     """Rewrite a run and its adjacent gaps without copying the remaining line."""
     labels = [label for m in SEQUENCE_RE.finditer(run)
               if (label := _label(m.group(0), opts))]
-    if "".join(labels) == run:
-        # Kept as written (a non-Latin reply): spacing is left alone too. Adding a gap here would
+    if "".join(labels) == "".join(run.split()):
+        # Every emoji kept as written (a non-Latin reply): spacing is left alone too, inside the run
+        # and around it. Adding a gap here would
         # depend on delimiters that the emphasis rule removes later, so a second pass would differ.
         return left + run, right
     if not labels:
