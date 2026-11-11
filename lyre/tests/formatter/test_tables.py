@@ -176,7 +176,7 @@ def test_complete_or_protected_math_still_speaks_tables(cell, profile, verbosity
 
 def test_table_after_paragraph_line():
     assert plain("Results:\n| A | B |\n|---|---|\n|1|2|") == (
-        "Results:\nTable, 1 row, 2 columns: A, B.\nRow 1: A 1, B 2.\nEnd of table.")
+        "Results:\n\nTable, 1 row, 2 columns: A, B.\nRow 1: A 1, B 2.\nEnd of table.")
 
 
 @pytest.mark.parametrize("profile", ["plain", "markdown"])

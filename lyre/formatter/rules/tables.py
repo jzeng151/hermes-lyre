@@ -8,10 +8,11 @@ oversized tables, and tables in mostly non-Latin replies, pass through byte-iden
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 
 from ..model import Block, Options
 from ..spans import TOKEN_RE, Stash, protect_code_spans, protect_inline
-from . import InlineFn, register_block_rule
+from . import InlineFn, inline_rules, register_block_rule
 
 MAX_ROWS = 50
 MAX_COLUMNS = 10
@@ -117,10 +118,27 @@ def tables(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
         out.append(_sentence(f"Row {number}: " + ", ".join(parts)))
     if opts.verbosity != "brief":
         out.append("End of table.")
-    if any(inline(line) != line for line in out):
-        # Joining cells paired markers that were apart (``*alpha | beta*``); the next pass would
-        # strip them, so the table stays as written.
+    # Rebuild protection from restored prose, not the original cell-local tokens. Math in
+    # separate destinations may now pair before destination protection, while newly emitted
+    # bare URLs must be protected before checking inline rules again.
+    restored = [_original(line, block) for line in out]
+    stash = Stash()
+    protected = protect_code_spans(restored, stash, lambda line: False)
+    next_opts = replace(opts, span=stash.value_of)
+    checked = []
+    for line in protected:
+        text = protect_inline(line, stash)
+        for rule in inline_rules():
+            text = rule(text, next_opts)
+        checked.extend(stash.restore(text))
+    if checked != restored:
         return list(block.lines)
+    # A table interrupts paragraphs; its spoken replacement does not. Keep the original
+    # block boundary so neighbouring unmatched delimiters cannot capture restored spans.
+    if block.meta.get("prev") and block.meta["prev"].strip():
+        out.insert(0, "")
+    if block.meta.get("next") and block.meta["next"].strip():
+        out.append("")
     return out
 
 
