@@ -70,7 +70,7 @@ Each rule lists the output at `normal` verbosity, then the differences at `brief
 
 - Backslash escapes stay as written. Turning `\*literal\*` into `*literal*` would let a second pass strip those asterisks, breaking AC-5. The one exception is `\|` inside a table that R6 converts, because the converted output is never a table again.
 - Markers are removed only when they pair on the same line. An unpaired `*` or `_` is left as is (for example `2 * 3`, `snake_case`).
-- Underscore markers pair only when the closing marker is followed by whitespace, line end or `, ; : ! ? )`, so `__init__.py` keeps its underscores (ADR 0003).
+- Underscore markers pair only when the closing marker is followed by whitespace, line end or `, ; : ! ? ) ]`, so `__init__.py` keeps its underscores (ADR 0003).
 - Single asterisks may pair inside a word (`un*believ*able`, CJK text) but never next to a digit, so `2*3*4` keeps its operators.
 - `brief`: strikethrough becomes `(removed: gone)` as well; no difference.
 - `full`: no difference.
@@ -251,6 +251,7 @@ End of code.
 
 - URLs are never shortened, decoded or re-encoded.
 - A link is rewritten only when the next pass protects its destination whole as a bare URL. Relative paths, fragments, other schemes and URLs ending in punctuation keep the link as written, so no pass can change the destination.
+- Text glued to a link (`[docs](u)suffix`, `[a](u)[b](v)`) gets a space after the emitted URL, so it never joins the address. Empty destinations (`[back]()`) keep the link as written.
 - A label that is a protected span (inline code, even across lines) stays a token in the output; only the label-equals-URL comparison reads its text.
 - Inline code keeps its backticks on both profiles. The backticks are the protection boundary: without them, a second pass would treat `**literal**` or a status emoji inside the code as prose and change it, breaking AC-5 and AC-6. Whether screen readers announce the backticks is Q5.
 - Inline code containing a backtick (double-backtick spans) keeps its delimiters and inner text exactly.

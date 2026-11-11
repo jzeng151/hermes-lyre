@@ -20,6 +20,7 @@ from . import register_inline_rule
 _T = "\ue000t\\d+\ue001"
 # An optional outer ``[`` with a matching ``](target)`` makes a linked image one unit.
 _LINK_RE = re.compile(f"(\\[)?(!?)\\[([^\\[\\]\n]*)\\]\\(({_T})\\)(?(1)\\]\\(({_T})\\))")
+_URL_END = ".,;:!?)'\"*_"  # characters the next pass never takes into a bare URL
 _AUTOLINK_RE = re.compile("<(\ue000u\\d+\ue001)>")
 
 
@@ -48,9 +49,10 @@ def links(text: str, opts: Options) -> str:
     span = opts.span
 
     def replace(m: re.Match) -> str:
-        values = [span(m.group(4)), span(m.group(5)) if m.group(1) else ""]
-        if None in values:
-            return m.group(0)
+        values = [span(m.group(4)), span(m.group(5)) if m.group(1) else "x"]
+        if None in values or not all(value.strip() for value in values):
+            return m.group(0)  # unknown token or an empty destination (``[back]()``)
+        values = values if m.group(1) else values[:1]
         urls = [_target_url(value) for value in values if value]
         if not all(_survives(url) for url in urls):
             return m.group(0)
@@ -66,7 +68,15 @@ def links(text: str, opts: Options) -> str:
             return label or urls[0]
         return f"{label}, link: {urls[0]}"
 
-    return _LINK_RE.sub(replace, text)
+    def bounded(m: re.Match) -> str:
+        out = replace(m)
+        after = m.string[m.end():m.end() + 1]
+        # Text glued to the link (``](u)suffix``, ``](u)[b](v)``) must not join the emitted URL.
+        if out != m.group(0) and after and not after.isspace() and after not in _URL_END:
+            out += " "
+        return out
+
+    return _LINK_RE.sub(bounded, text)
 
 
 register_inline_rule("links", links, order=90)
