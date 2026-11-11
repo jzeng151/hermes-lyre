@@ -67,15 +67,18 @@ def links(text: str, opts: Options) -> str:
             return m.group(0)
         label = m.group(3).strip()  # tokens stay tokens; only the comparison expands them
         shown = span(label) if TOKEN_RE.fullmatch(label) else label
+        # Block rules may run inline validation again before the core restores tokens.
+        # Keep emitted destinations opaque throughout that entire container pass.
+        protected = [opts.protect_url(url) if opts.protect_url else url for url in urls]
         if m.group(1):
             name = f"Image: {label}" if label else "Image"
-            prefix = f"{name}, source: {urls[0]}, link: {urls[1]}"
+            prefix = f"{name}, source: {protected[0]}, link: {protected[1]}"
             return prefix if m.group(2) else m.group(0)
         if m.group(2):
-            return f"Image: {label}, link: {urls[0]}" if label else f"Image, link: {urls[0]}"
+            return f"Image: {label}, link: {protected[0]}" if label else f"Image, link: {protected[0]}"
         if not label or shown == urls[0]:
-            return label or urls[0]
-        return f"{label}, link: {urls[0]}"
+            return label or protected[0]
+        return f"{label}, link: {protected[0]}"
 
     def bounded(m: re.Match) -> str:
         out = replace(m)
