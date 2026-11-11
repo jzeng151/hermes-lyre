@@ -187,7 +187,7 @@ def _process(text: str, opts: Options, depth: int) -> str:
 
 
 def _before_indented_code(block: Block) -> bool:
-    following = block.meta.get("next_text")
+    following = block.meta.get("next_non_math_text")
     return following is not None and is_block_token_line(following) and following.strip()[1] in ("c", "f")
 
 
@@ -201,11 +201,16 @@ def _nearest_text(blocks: list[Block]) -> None:
         block.meta["prev_text"] = last
         if block.kind != "blank":
             last = block.lines[-1]
-    following = None
+    following = non_math = None
     for block in reversed(blocks):
         block.meta["next_text"] = following
+        block.meta["next_non_math_text"] = non_math
         if block.kind != "blank":
             following = block.lines[0]
+            # Display math preserves list context in protect_blocks; look through it when
+            # deciding whether removing a terminator would expose later protected code.
+            if block.kind != "math":
+                non_math = following
 
 
 def _exposed_at_boundary(first: str, prev_out: str | None) -> bool:
