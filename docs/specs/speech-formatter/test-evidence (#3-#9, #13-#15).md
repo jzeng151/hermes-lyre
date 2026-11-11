@@ -19,7 +19,7 @@ Owner: @jzeng151
 | AC-9 Under 50 ms for 20 KB | Performance test on CI | | Pending |
 | AC-10 No spoken markup in transformed regions | Property test with the pass-through exemptions | | Pending |
 | AC-11 No English inserted in non-Latin replies | Unit tests (Japanese, Arabic, Russian samples) | | Pending |
-| AC-12 Verbosity keeps all information | Parametrized test | | Pending |
+| AC-12 Verbosity keeps all information | Parametrized test | `test_verbosity.py::test_ac12_every_level_keeps_all_information`, `test_levels_only_change_framing` | Pass |
 | AC-13 Exception returns input | Unit test with a rule forced to raise | `test_core.py::test_raising_rule_returns_input` | Pass |
 | AC-14 Survives core WhatsApp plain-output formatter | Round-trip test | | Pending |
 | AC-15 Escapes and inline code stable across passes | Unit test, plain profile | | Pending |
