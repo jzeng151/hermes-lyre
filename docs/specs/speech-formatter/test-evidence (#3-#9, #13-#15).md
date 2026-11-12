@@ -44,8 +44,8 @@ Owner: @jzeng151
 
 - [ ] Read five golden outputs aloud with a screen reader and note anything that sounds wrong.
 - [ ] Review the round-trip outputs for each adapter by eye (`lyre/tests/roundtrip_fixtures/`).
-- [ ] Confirm the fence decision from #2 is reflected in R7 and its tests.
-- [ ] Confirm the backtick and backslash finding from #2 (Q5) is reflected in R1, R8 and their tests.
+- [x] Confirm the fence decision from #2 is reflected in R7 and its tests: fences kept on every profile, no change to R7 or its tests.
+- [x] Confirm the backtick and backslash finding from #2 (Q5) is reflected in R1, R8 and their tests: backticks kept, no change. Prose backslash escapes are #51.
 
 ## Known Gaps
 

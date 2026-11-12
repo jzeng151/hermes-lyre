@@ -1,4 +1,4 @@
-"""R7 code blocks (task T7; fences kept until Q1 is settled by #2)."""
+"""R7 code blocks (task T7; fences kept on every profile, spec Q1)."""
 
 from __future__ import annotations
 
