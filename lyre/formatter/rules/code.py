@@ -1,8 +1,8 @@
 """R7: code blocks are announced before and after (both profiles).
 
 ``Python code, 12 lines:`` before a block and ``End of code.`` after it; the code itself is a
-protected span and never changes. Fences are kept on every profile until the baseline test
-(#2) settles spec Q1. A block that already has Lyre's labels around it gets none added, so a
+protected span and never changes. Fences are kept on every profile (spec Q1, settled by the
+baseline test in #2). A block that already has Lyre's labels around it gets none added, so a
 second pass changes nothing. Unclosed fences and mostly non-Latin replies get no labels.
 """
 

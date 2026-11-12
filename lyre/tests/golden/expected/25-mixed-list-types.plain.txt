@@ -1,0 +1,14 @@
+Options:
+
+2 items.
+1, Fast mode
+2, Safe mode
+
+Steps:
+
+2 items.
+1, Pick a mode
+2, Confirm
+
+1 item.
+1, Note: either works.

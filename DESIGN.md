@@ -192,7 +192,7 @@ The scaffold's stub is `format_for_speech(text, *, platform, settings)`. This de
 
 - `requires_hermes: ">=0.23.0"`, tested on v0.23.0. Every API above exists at that release.
 - Every adapter's own `format_message` runs after Lyre. Lyre's output must survive each one (#13).
-- Core has an opt-in WhatsApp plain-output formatter. Lyre's status words match its labels (`(done)`, `(warning)`, `(red)`) and code must keep its fences where that formatter can run after Lyre, or it strips `**` and emoji from inside the code.
+- Core has an opt-in WhatsApp plain-output formatter. Lyre's status words match its labels (`(done)`, `(warning)`, `(red)`) and code must keep its fences where that formatter can run after Lyre, or it strips `**` and emoji from inside the code. The #2 baseline found screen readers do not speak fences on Telegram, so Lyre keeps them on every profile (ADR 0007).
 - Only one `transform_llm_output` rewrite wins per turn. Another rewrite plugin that registers first silently disables Lyre for that turn. Documented in the README.
 
 ### Information preservation

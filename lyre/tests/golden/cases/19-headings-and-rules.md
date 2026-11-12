@@ -1,0 +1,15 @@
+# Weekly report
+
+---
+
+## Done
+
+Shipped the **search** feature.
+
+## Blocked
+
+Waiting on API keys.
+
+***
+
+_Generated automatically._

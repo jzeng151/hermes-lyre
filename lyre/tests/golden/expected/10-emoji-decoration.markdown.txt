@@ -1,0 +1,5 @@
+**Great question!**
+
+The short answer: yes, it scales.
+
+Tip: cache the results.

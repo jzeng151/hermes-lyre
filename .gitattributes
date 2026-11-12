@@ -1,0 +1,2 @@
+lyre/tests/golden/** text eol=lf
+lyre/tests/roundtrip_fixtures/** text eol=lf

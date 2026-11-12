@@ -1,0 +1,11 @@
+Weekly report.
+
+Done.
+
+Shipped the search feature.
+
+Blocked.
+
+Waiting on API keys.
+
+Generated automatically.

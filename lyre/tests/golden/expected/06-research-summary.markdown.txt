@@ -1,0 +1,12 @@
+# Summary
+
+I found **three** relevant papers:
+
+3 items.
+1, Attention Is All You Need, link: https://arxiv.org/abs/1706.03762 introduced the Transformer.
+2, BERT, link: https://arxiv.org/abs/1810.04805 applied it to pretraining.
+3, GPT-3, link: https://arxiv.org/abs/2005.14165 showed scaling helps few-shot learning.
+
+> The key idea is self-attention over the whole sequence.
+
+Want a deeper dive on any of them?
