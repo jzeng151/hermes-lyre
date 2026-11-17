@@ -13,6 +13,7 @@ Lyre protects each backslash escape as a span (spec step 2). Removing a backslas
 - WhatsApp, Slack and the plain profile's clients pass the backslash through, and it is displayed.
 - Discord renders the escape, so the backslash is already hidden there; the bare character displays the same.
 - Core's plain-text formatter (SMS, iMessage) drops `*` characters when two of them share a line, with or without a backslash before them. A lone `*` survives.
+- Telegram's adapter in Hermes v0.23.0, the plugin's minimum version, ignores both flanking and backslashes. It turns any two `*` on one line into italics, so in `2 * 3 = 6 and retry\*limit` the text between the two asterisks is shown in italics. Later versions escape the bare characters instead. No adapter in either version pairs `*`, `_` or `~` across lines.
 
 ## Decision
 
@@ -23,11 +24,13 @@ A new inline rule, R10, runs last on both profiles. It replaces an escape placeh
 - `` ` ``, `[`, `]`, `|`, `$` and `\` always keep their backslash: a bare backtick can pair into a code span, a bracket can start a link, a pipe can split a table row, a dollar sign can open math in some apps, and removing one backslash of `\\` still leaves one to hear.
 - Escapes inside a word (`retry\*limit`), paired escapes (`\_name\_`) and escapes at the start of a line or container keep their backslash. They could form markup on a second pass, possibly across lines in a client's Markdown parser, which Lyre's per-line rules cannot see.
 - The rule runs after every other inline rule, so the words it checks are the ones in the output and a second pass makes the same decision. Code, math, URLs, link destinations and HTML tags are protected before it runs and are never changed.
+- `*`, `_` and `~` lose their backslash only when the escape is the only one of that character on its line. Bare copies, other escapes and copies inside protected text (code spans, URLs, link destinations) all count. Otherwise every escape of that character on the line stays, so Lyre never gives such an app a pair it would not have had in the reply as written. Counting per line, not per paragraph, matches what the adapters do and still removes the backslash in the common one-operator line. A second pass sees the same line and makes the same decision.
 - One rule for both profiles: on every surface checked, the bare character displays the same as or better than the escape.
 
 ## Consequences
 
 - TalkBack users no longer hear "backslash" for arithmetic and other spaced symbols in prose (`2 * 3`, `10 - 4`, `x # 1`).
+- A line with two products (`2 \* 3 and 4 \* 5`), or an operator next to `retry\*limit` or a URL containing `*`, is still read with its backslashes.
 - In-word and paired escapes such as `retry\*limit` and `\_name\_` are still read with their backslash. Removing those safely needs paragraph-wide pairing checks, which this decision does not attempt.
 - On SMS and iMessage, core's plain-text formatter still drops two spaced asterisks on one line; Lyre cannot prevent that, and the result is no worse than before (the backslashes were left behind on their own).
 - Two existing idempotence gaps reach a few more inputs, because any changed line can expose them: a changed paragraph line directly above a line indented by four or more columns gains a blank line, and list output can change how an unmatched backtick pairs across lines. Both already happen with emphasis and strikethrough; fixing them is separate work in the core pipeline.

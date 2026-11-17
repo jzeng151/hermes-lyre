@@ -150,23 +150,47 @@ def test_core_plain_text_formatter_keeps_markers_inside_code():
     assert "x = '**literal**'" in helpers.strip_markdown(ours)
 
 
-ESCAPES = "The total is 2 \\* 3 = 6, then a \\_ b, x \\# 1 and \\_name\\_ with retry\\*limit."
+# R10 (#51). Each line has at most one of each pairable character (*, _, ~), so every escape goes.
+REMOVABLE = "The total is 2 \\* 3 = 6, then a \\_ b and x \\# 1.\nNext 4 \\* 5 = 20 and c \\~ d."
+# A second asterisk on the line (escaped, bare, or in a URL) keeps the escape: Telegram's adapter in
+# Hermes v0.23.0 pairs any two asterisks on a line as italics, escaped or not.
+PAIRABLE = [
+    "The total is 2 \\* 3 = 6, then a \\_ b, x \\# 1 and \\_name\\_ with retry\\*limit.",
+    "2 \\* 3 \\* 4, and a \\_ b \\_ c, and a \\~ b \\~ c.",
+    "2 \\* 3 = 6 at https://t.test/a*b now.",
+    "2 \\* 3 = 6 and 4 * 5 = 20.",
+]
 
 
 @pytest.mark.parametrize("platform", list(ADAPTERS))
 def test_removed_escape_shows_the_bare_character(platform):
     """R10: a prose escape between two words reaches the app as the bare character (#51)."""
     cls, adapter = _adapter(platform)
-    ours = _lyre(ESCAPES, platform)
-    final = cls.format_message(adapter, ours)
-    shown = _shown(platform, final)
-    for removed in ("2 * 3 = 6", "a _ b", "x # 1"):
+    ours = _lyre(REMOVABLE, platform)
+    shown = _shown(platform, cls.format_message(adapter, ours))
+    for removed in ("2 * 3 = 6", "a _ b", "x # 1", "4 * 5 = 20", "c ~ d"):
         assert removed in ours and removed in shown, f"{platform}: {shown!r}"
-    # Paired and in-word escapes keep their backslash, and the app shows it as written.
-    assert "\\_name\\_" in shown and "retry\\*limit" in shown
-    # No emphasis appears: the app keeps every asterisk and underscore Lyre left.
-    for c in "*_":
+    # No emphasis appears: the app keeps every asterisk, underscore and tilde Lyre left.
+    for c in "*_~":
         assert shown.count(c) == ours.count(c), f"{platform}: {shown!r}"
+
+
+@pytest.mark.parametrize("platform", list(ADAPTERS))
+@pytest.mark.parametrize("index", range(len(PAIRABLE)))
+def test_lyre_adds_no_pairing_the_app_would_not_do_anyway(platform, index):
+    """Whatever the app pairs in Lyre's output, it also pairs in the reply as written."""
+    cls, adapter = _adapter(platform)
+    text = PAIRABLE[index]
+    ours = _lyre(text, platform)
+    assert "\\#" not in ours or "\\#" in text
+
+    def shown(reply: str) -> str:
+        # Only the escapes R10 may remove here (``\\#``) differ between the two replies.
+        return _shown(platform, cls.format_message(adapter, reply)).replace("\\#", "#")
+
+    assert shown(ours) == shown(text), f"{platform}: {shown(ours)!r}"
+    for kept in ("\\*", "\\_", "\\~"):
+        assert ours.count(kept) == text.count(kept)
 
 
 def test_removed_escape_survives_core_plain_text_formatter():

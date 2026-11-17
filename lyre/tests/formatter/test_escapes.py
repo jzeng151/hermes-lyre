@@ -20,10 +20,10 @@ def assert_stable(out: str, profile: str) -> None:
 # Each removed escape: the bare character sits between words, with a space on both sides.
 REMOVED = [
     ("2 \\* 3 = 6", "2 * 3 = 6"),
-    ("the total is 2 \\* 3 = 6, then 6 \\* 2", "the total is 2 * 3 = 6, then 6 * 2"),
     ("a \\_ b", "a _ b"),
-    ("a \\_ b \\_ c", "a _ b _ c"),
-    ("2 \\* 3 \\* 4", "2 * 3 * 4"),
+    ("2 \\* 3 = 6\n\n4 \\* 5 = 20", "2 * 3 = 6\n\n4 * 5 = 20"),
+    ("2 \\* 3 = 6\nand 4 \\* 5 = 20", "2 * 3 = 6\nand 4 * 5 = 20"),
+    ("2 \\* 3 and a \\_ b and c \\~ d", "2 * 3 and a _ b and c ~ d"),
     ("use x \\# 1", "use x # 1"),
     ("a \\- b \\+ c \\= d", "a - b + c = d"),
     ("a \\~ b", "a ~ b"),
@@ -73,13 +73,52 @@ def test_removed_in_heading_and_table():
 
 
 def test_removal_after_plain_emphasis_is_stable():
-    # Plain removes the emphasis around the escape first, then the escape loses its backslash.
+    # Plain removes the emphasis around the escape first; the escape is then the only asterisk.
     out = fmt("a*b \\* c*d", "plain")
     assert out == "ab * cd"
     assert_stable(out, "plain")
-    out = fmt("a*b \\* c*d", "markdown")
-    assert out == "a*b * c*d"
-    assert_stable(out, "markdown")
+    # The markdown profile keeps the emphasis markers, so the escape keeps its backslash.
+    assert fmt("a*b \\* c*d", "markdown") == "a*b \\* c*d"
+
+
+# A client such as Telegram's adapter in Hermes v0.23.0 pairs any two asterisks on a line,
+# escaped or not, flanking or not. An escape of *, _ or ~ loses its backslash only when it is
+# the only one of that character on its line, counting code, URLs and other protected text.
+@pytest.mark.parametrize("profile", PROFILES)
+@pytest.mark.parametrize("text", [
+    "The total is 2 \\* 3 = 6, then a \\* b, x \\# 1 and \\_name\\_ with retry\\*limit.",
+    "the total is 2 \\* 3 = 6, then 6 \\* 2",
+    "2 \\* 3 \\* 4",
+    "a \\_ b \\_ c",
+    "a \\~ b \\~ c",
+    "2 \\* 3 and retry\\*limit",
+    "2 \\* 3 and 4 * 5",
+    "a \\_ b and snake_case",
+    "a \\~ b and ~~gone~~ c ~ d",
+    "2 \\* 3 and `k*` in code",
+    "2 \\* 3 at https://t.test/a*b now",
+    "2 \\* 3 at [docs](https://t.test/a*b) now",
+    "| 2 \\* 3 | 4 \\* 5 |\n|---|---|\n| a | b |",
+])
+def test_pairable_escape_kept_when_its_character_repeats_on_the_line(text, profile):
+    out = fmt(text, profile, table_style="unchanged")
+    assert "2 * 3" not in out and "a _ b" not in out and "a ~ b" not in out and "6 * 2" not in out
+    assert fmt(out, profile, table_style="unchanged") == out
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+def test_ci_reply_removes_only_the_unpairable_escape(profile):
+    text = "The total is 2 \\* 3 = 6, then a \\* b, x \\# 1 and \\_name\\_ with retry\\*limit."
+    out = fmt(text, profile)
+    assert out == text.replace("x \\# 1", "x # 1")
+    assert_stable(out, profile)
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+def test_other_characters_do_not_need_to_be_unique(profile):
+    out = fmt("a \\# b \\# c and 1 \\- 2 \\- 3", profile)
+    assert out == "a # b # c and 1 - 2 - 3"
+    assert_stable(out, profile)
 
 
 # Each kept escape: removing it could change what the next pass (or the app) sees.
@@ -165,11 +204,11 @@ def test_probe_reply():
 
 @pytest.mark.parametrize("profile", PROFILES)
 def test_ac24_only_the_spaced_escape_loses_its_backslash(profile):
-    reply = ("Total 2 \\* 3 = 6 with retry\\*limit and \\_name\\_.\n\n"
+    reply = ("Total 2 \\* 3 = 6 here.\n\nSet retry\\*limit and \\_name\\_, then 4 \\* 5 and 6 \\* 7.\n\n"
              "Then a \\| b and `2 \\* 3`.\n\n\\# title")
     out = fmt(reply, profile)
     assert "Total 2 * 3 = 6" in out
-    for kept in ("retry\\*limit", "\\_name\\_", "a \\| b", "`2 \\* 3`", "\\# title"):
+    for kept in ("retry\\*limit", "\\_name\\_", "4 \\* 5 and 6 \\* 7", "a \\| b", "`2 \\* 3`", "\\# title"):
         assert kept in out
     assert_stable(out, profile)
 

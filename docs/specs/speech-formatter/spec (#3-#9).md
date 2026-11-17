@@ -280,9 +280,11 @@ TalkBack reads every backslash it meets, and most messaging apps show a Markdown
 | `retry\*limit`, `\_name\_`, `\*literal\*` | unchanged |
 | `a \| b`, `a \[ b`, `` a \` b ``, `a \$ b`, `a \\ b` | unchanged |
 | `\# title`, `- \* x`, `1. \* x`, `(2) \* 3`, `2 \*3`, `2 \* \* 3` | unchanged |
+| `2 \* 3 \* 4`, `2 \* 3 and retry\*limit`, `2 \* 3 and 4 * 5`, `a \_ b \_ c` | unchanged |
 
 - The backslash goes only when the escaped character stands alone between two words: a space or tab directly on each side, and a letter or digit (any script) as the nearest character on each side past that whitespace.
 - Whitespace on both sides means the character is neither left- nor right-flanking, so it can never open or close emphasis or strikethrough (R1 or CommonMark). A word before it means it is not at the start of a line, list item, quote or table cell, so it cannot start a heading, list, quote or rule. A word after it keeps it out of a heading's closing `#` run and away from other escapes and protected spans.
+- `*`, `_` and `~` lose their backslash only when that escape is the only one of its character on the line, escaped or bare, counting the text of code spans, URLs, link destinations and every other protected span. Otherwise every escape of that character on the line stays. Some apps pair any two of them on a line, with or without spaces or backslashes (Telegram's adapter in Hermes v0.23.0 shows the text between the asterisks of `2 * 3 and retry\*limit` in italics). None of the adapters checked pairs them across lines, so other lines do not count. Other characters do not need to be unique: `a \# b \# c` becomes `a # b # c`.
 - These characters always keep their backslash, because they can pair or start markup anywhere on a line: `` ` `` (code spans), `[` and `]` (links), `|` (table cells), `$` (math in some apps) and `\` (one backslash would still be heard).
 - Code spans, fenced and indented code, display and inline math, URLs, link destinations and HTML tags are protected before this rule runs, so a backslash inside them is never removed.
 - The rule runs after every other inline rule, so the words it checks are the ones in the output, and a second pass makes the same decision.
@@ -313,7 +315,7 @@ TalkBack reads every backslash it meets, and most messaging apps show a Markdown
 - [ ] **AC-21** Given a top-level indented code block and a list item containing indented code (`- Example:`, a blank line, then six-space-indented Python with `**` and an emoji in a string), when formatted twice, then each block's lines are byte-identical, each has exactly one label pair, and the output equals the first pass.
 - [ ] **AC-22** Given lines starting with `[- Build](https://x.test)`, `🎉 1. Done`, `**# Title**`, the heading `# - Build`, the two lines `Title` and `**===**`, and `> # Quoted title`, when formatted twice on the `plain` profile at every verbosity, then all but the quote are unchanged (no Setext heading appears), the quote becomes a heading inside the quote, no list, heading or quote structure appears that the input did not have, and the second pass equals the first.
 - [ ] **AC-23** Given a blockquote holding an indented code block (`>`, then `>     print("✅ **done**")`) and a fenced block (`> ```py` ... `> ````), when formatted twice on either profile, then the code lines after the quote markers are byte-identical, each block has one label pair, and the second pass equals the first. The same holds at `full` verbosity on the `plain` profile when the quote starts with a fenced block.
-- [ ] **AC-24** Given `2 \* 3 = 6`, `retry\*limit`, `\_name\_`, `a \| b`, `\# title` and `` `2 \* 3` `` in one reply, when formatted twice on either profile, then only the first loses its backslash, the code span is byte-identical, and the second pass equals the first.
+- [ ] **AC-24** Given `2 \* 3 = 6` on its own line, and `retry\*limit`, `\_name\_`, `4 \* 5 and 6 \* 7`, `a \| b`, `\# title` and `` `2 \* 3` `` on other lines of one reply, when formatted twice on either profile, then only the first loses its backslash, the code span is byte-identical, and the second pass equals the first.
 
 ## Edge Cases
 
