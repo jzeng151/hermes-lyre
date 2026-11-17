@@ -10,11 +10,13 @@ Profile = Literal["plain", "markdown"]
 Verbosity = Literal["brief", "normal", "full"]
 EmojiPolicy = Literal["words", "remove", "keep"]
 TableStyle = Literal["sentences", "unchanged"]
+CodeLanguage = Literal["spoken", "client"]
 
 PROFILES = ("plain", "markdown")
 VERBOSITIES = ("brief", "normal", "full")
 EMOJI_POLICIES = ("words", "remove", "keep")
 TABLE_STYLES = ("sentences", "unchanged")
+CODE_LANGUAGES = ("spoken", "client")
 
 
 @dataclass(frozen=True)
@@ -25,6 +27,8 @@ class Options:
     script; rules must then insert no English words (spec: Script detection). ``span`` reads the
     original text of a protected token at the current container level (None outside a pass), so
     rules such as code labels can see what a placeholder stands for without changing it.
+    ``code_language`` is ``client`` when the client shows a code block's language itself, so
+    the code label leaves it out (ADR 0010).
     ``protect_url`` stashes emitted destinations until the current container is restored,
     including any repeated inline validation performed by block rules.
     """
@@ -33,6 +37,7 @@ class Options:
     verbosity: Verbosity = "normal"
     emoji_policy: EmojiPolicy = "words"
     table_style: TableStyle = "sentences"
+    code_language: CodeLanguage = "spoken"
     latin: bool = True
     span: Callable[[str], str | None] | None = field(default=None, compare=False, repr=False)
     protect_url: Callable[[str], str] | None = field(default=None, compare=False, repr=False)

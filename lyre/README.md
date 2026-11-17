@@ -84,6 +84,8 @@ Code, web addresses and math are never changed. Box-drawing trees, Braille and a
 
 On Telegram, Discord, Slack, Matrix, Teams, Mattermost and Google Chat, the app shows Markdown, so Lyre keeps formatting the app turns into real bold or code. On WhatsApp, SMS, Signal, email, the terminal and every other app, Lyre writes plain text.
 
+Telegram shows the language of a code block itself, so there Lyre's line before the code leaves it out ("Code, 12 lines:") and you hear the language once.
+
 ## Commands
 
 - `/a11y on` turns Lyre on, including for the app you send it from.

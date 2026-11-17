@@ -1,7 +1,8 @@
 """R7: code blocks are announced before and after (both profiles).
 
 ``Python code, 12 lines:`` before a block and ``End of code.`` after it; the code itself is a
-protected span and never changes. Fences are kept on every profile (spec Q1, settled by the
+protected span and never changes. Where the client shows the language itself
+(``code_language="client"``), the label leaves it out: ``Code, 12 lines:`` (ADR 0010). Fences are kept on every profile (spec Q1, settled by the
 baseline test in #2). A block that already has Lyre's labels around it gets none added, so a
 second pass changes nothing. Unclosed fences and mostly non-Latin replies get no labels.
 """
@@ -45,7 +46,7 @@ def _describe(original: str, token_kind: str) -> tuple[str, int] | None:
 def _label(language: str, count: int, opts: Options) -> str:
     if opts.verbosity == "brief":
         return "Code:"
-    name = f"{language} code" if language else "Code"
+    name = f"{language} code" if language and opts.code_language == "spoken" else "Code"
     return f"{name}, {count} line{'' if count == 1 else 's'}:"
 
 

@@ -32,6 +32,9 @@ _SURFACES: dict[str, tuple[str, str]] = {
     "webhook": ("api", "markdown"),
 }
 _NEVER = frozenset({"", "subagent"})
+# Clients that show a fenced block's language themselves, so Lyre's code label leaves it out
+# (ADR 0010). Only clients confirmed by source and the screen-reader baseline are listed.
+_CLIENT_CODE_LANGUAGE = frozenset({"telegram"})
 
 
 def surface(platform: str) -> tuple[str, str] | None:
@@ -51,6 +54,7 @@ def rewrite(ctx, response_text: str, platform: str, turn_id: str = "") -> str | 
         return None
     settings = load_settings(ctx)
     group, profile = resolved
+    code_language = "client" if platform.strip().lower() in _CLIENT_CODE_LANGUAGE else "spoken"
     if not settings.enabled or not settings.groups.get(group, False):
         return None
 
@@ -61,7 +65,7 @@ def rewrite(ctx, response_text: str, platform: str, turn_id: str = "") -> str | 
     start = time.perf_counter()
     result = format_for_speech(response_text, profile=profile, verbosity=settings.verbosity,
                                emoji_policy=settings.emoji_policy, table_style=settings.table_style,
-                               on_error=failed)
+                               code_language=code_language, on_error=failed)
     elapsed_ms = (time.perf_counter() - start) * 1000
     if elapsed_ms > SLOW_MS:
         logger.info("lyre: formatting took %.0f ms for %d characters", elapsed_ms, len(response_text))

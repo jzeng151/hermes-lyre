@@ -126,3 +126,50 @@ def test_decoration_before_fence_stays_separate_from_code_label(profile, verbosi
     once = format_for_speech("🎉\n" + code, profile=profile, verbosity=verbosity)
     assert code in once
     assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
+
+
+# code_language="client": the client shows the fence language itself (ADR 0010, #43).
+
+
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_client_code_language_leaves_the_language_out(profile):
+    out = format_for_speech(SPEC, profile=profile, code_language="client")
+    assert out == 'Code, 1 line:\n```python\nprint("✅ **done**")\n```\nEnd of code.'
+
+
+def test_spoken_code_language_is_the_default():
+    assert plain(SPEC, code_language="spoken") == plain(SPEC)
+    assert plain(SPEC).startswith("Python code, 1 line:\n")
+
+
+def test_client_code_language_brief_and_unknown_language_unchanged():
+    assert plain(SPEC, verbosity="brief", code_language="client") == plain(SPEC, verbosity="brief")
+    unknown = "```brainfuck\na\nb\n```"
+    assert plain(unknown, code_language="client") == plain(unknown)
+
+
+def test_client_code_language_in_list_item():
+    out = plain("- ```py\n  x='**'\n  ```\n- after", code_language="client")
+    assert "Code, 1 line:" in out
+    assert "Python" not in out
+
+
+def test_unknown_code_language_value_raises():
+    with pytest.raises(ValueError, match="code_language"):
+        plain(SPEC, code_language="omit")
+
+
+@pytest.mark.parametrize("text", CASES)
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_idempotent_with_client_code_language(text, verbosity, profile):
+    once = format_for_speech(text, profile=profile, verbosity=verbosity, code_language="client")
+    assert format_for_speech(once, profile=profile, verbosity=verbosity, code_language="client") == once
+
+
+@pytest.mark.parametrize("text", CASES)
+@pytest.mark.parametrize("first,second", [("spoken", "client"), ("client", "spoken")])
+def test_label_from_the_other_setting_is_kept(text, first, second):
+    # A reply labelled before the setting changed is not labelled again or relabelled.
+    once = plain(text, code_language=first)
+    assert plain(once, code_language=second) == once
