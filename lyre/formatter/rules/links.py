@@ -5,8 +5,10 @@
 ``Image: alt, source: src, link: href``. URLs are never shortened or re-encoded. A label equal to
 its URL and ``<https://x.test>`` become the bare URL. A destination that the next pass would not
 protect as a URL (a relative path, a fragment, another scheme) keeps the link as written, so no
-pass can change it. Mostly non-Latin replies keep markdown links. Inline code keeps its backticks
-(spec R8, Q5). This rule runs after every other inline rule.
+pass can change it. A link or image with a title (``[a](u "t")``) is kept as written; span
+protection already stashes it whole, and this rule checks again (ADR 0009). Mostly non-Latin
+replies keep markdown links. Inline code keeps its backticks (spec R8, Q5). This rule runs after
+every other inline rule.
 """
 
 from __future__ import annotations
@@ -14,7 +16,7 @@ from __future__ import annotations
 import re
 
 from ..model import Options
-from ..spans import CLOSE, OPEN, TOKEN_RE, Stash, protect_inline
+from ..spans import CLOSE, OPEN, TOKEN_RE, Stash, has_title, protect_inline
 from . import register_inline_rule
 
 _T = "\ue000t\\d+\ue001"
@@ -25,12 +27,11 @@ _AUTOLINK_RE = re.compile("<(\ue000u\\d+\ue001)>")
 
 
 def _target_url(value: str) -> str:
-    """The URL part of a link target, without angle brackets or a title."""
+    """The URL of an untitled link target, without angle brackets."""
     value = value.strip()
     if value.startswith("<") and ">" in value:
         return value[1:value.index(">")]
-    parts = value.split()
-    return parts[0] if parts else value
+    return value
 
 
 def _glued(m: re.Match) -> bool:
@@ -62,6 +63,8 @@ def links(text: str, opts: Options) -> str:
         if None in values or not all(value.strip() for value in values):
             return m.group(0)  # unknown token or an empty destination (``[back]()``)
         values = values if m.group(1) else values[:1]
+        if any(has_title(value) for value in values):
+            return m.group(0)  # the title would be lost (ADR 0009)
         urls = [_target_url(value) for value in values if value]
         if not all(_survives(url) for url in urls):
             return m.group(0)

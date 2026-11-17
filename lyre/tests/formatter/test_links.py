@@ -23,9 +23,10 @@ def plain(text: str, **kw) -> str:
     ("![chart](https://x.test/c.png)", "Image: chart, link: https://x.test/c.png"),
     ("![](https://x.test/c.png)", "Image, link: https://x.test/c.png"),
     ("see https://x.test/a_b_c", "see https://x.test/a_b_c"),
-    ('[**docs**](https://x.test/a_b "title")', "docs, link: https://x.test/a_b"),
+    # a titled link is kept whole, label included, so the title is not lost (ADR 0009)
+    ('[**docs**](https://x.test/a_b "title")', '[**docs**](https://x.test/a_b "title")'),
     # a trailing underscore would fall outside the URL token on the next pass: link kept
-    ('[**docs**](https://x.test/a_b_ "title")', '[docs](https://x.test/a_b_ "title")'),
+    ('[**docs**](https://x.test/a_b_)', '[docs](https://x.test/a_b_)'),
     ("[`npm`](https://x.test)", "`npm`, link: https://x.test"),
     ("x ``a ` **b**`` y", "x ``a ` **b**`` y"),
 ])

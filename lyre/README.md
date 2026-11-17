@@ -71,7 +71,7 @@ Here is the same reply after Lyre, as you would hear it:
 - Links keep their full address after the word "link", so nothing is lost.
 - Replies mostly in a script other than Latin keep their emoji and gain no English words.
 
-Code, web addresses and math are never changed. Box-drawing trees, Braille and anything Lyre cannot read with confidence are left as written.
+Code, web addresses, link targets and math are never changed: display math, `$$...$$`, `\(...\)`, `\[...\]` on one line, and `$...$` written tight against its contents (so `$5 and $10` stays ordinary text). A link with a title is left exactly as written, so the title is kept. Box-drawing trees, Braille and anything Lyre cannot read with confidence are left as written.
 
 ## What changes on each platform
 

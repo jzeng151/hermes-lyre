@@ -22,7 +22,8 @@ from .spans import (CLOSE, OPEN, TOKEN_RE, Stash, indent_width, is_block_token_l
 
 _ASCII_LETTER_PROBE = re.compile("[A-Za-z]")
 # Quotes in lists still need opaque-container protection even without inline markers.
-_INLINE_PROTECTION_PROBE = re.compile(r"`|<|\\|\[|\]\(|\$\$|://|^ {0,3}>", re.MULTILINE)
+# ``\$\S[^$\n]*\$`` finds any inline math pair (``$$`` included) but not a lone price.
+_INLINE_PROTECTION_PROBE = re.compile(r"`|<|\\|\[|\]\(|\$\S[^$\n]*\$|://|^ {0,3}>", re.MULTILINE)
 
 MAX_BYTES = 200_000
 MAX_QUOTE_DEPTH = 10
