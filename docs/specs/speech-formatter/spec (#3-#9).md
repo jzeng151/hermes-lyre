@@ -40,9 +40,9 @@ def format_for_speech(
 ## Processing model
 
 1. **Size gate.** Over the byte cap: return input.
-2. **Protect spans.** In this order: fenced code blocks (``` and ~~~, with or without an info string, at any indentation, so a fence nested in list output is still a fence on the next pass), display math (`$$...$$`, on one line or across lines), indented code blocks (after a blank line: 4 spaces or a tab at the top level, or the list item's content column plus 4 inside a list item), inline code, backslash escapes (`\` followed by an ASCII punctuation character), HTML tags, bare URLs and link targets are replaced by placeholders. Nothing inside a placeholder is ever modified. Lyre's own output never starts a line with 4 or more spaces outside a protected span, so a second pass never finds new indented code.
+2. **Protect spans.** In this order: fenced code blocks (``` and ~~~, with or without an info string, at any indentation, so a fence nested in list output is still a fence on the next pass), display math (`$$...$$`, on one line or across lines), indented code blocks (after a blank line: 4 spaces or a tab at the top level, or the list item's content column plus 4 inside a list item), inline code, backslash escapes (`\` followed by an ASCII punctuation character), HTML tags, bare URLs and link targets are replaced by placeholders. Nothing inside a placeholder is ever modified, with one exception: R10 may replace a prose escape's placeholder with its bare character. Lyre's own output never starts a line with 4 or more spaces outside a protected span, so a second pass never finds new indented code.
 3. **Block pass.** Lines are grouped into blocks: table, list, heading, rule, blockquote, paragraph. One linear pass; no backtracking regexes. A blockquote is a container: its `>` markers are removed and its contents go through steps 2 to 7 on their own, span protection included, so fenced or indented code inside a quote is protected and `> # Title` is a heading inside the quote. If any quote is nested more than 10 deep, the outermost quote holding it is left unchanged, which keeps the work linear in practice and stays idempotent.
-4. **Rules.** Each block is handed to the rule that owns it. Inline rules (emphasis, emoji, links) run on paragraph, list item, heading and table cell text.
+4. **Rules.** Each block is handed to the rule that owns it. Inline rules (emphasis, emoji, links, prose escapes) run on paragraph, list item, heading and table cell text.
 5. **Restore spans**, applying the code and link rules to the placeholders' surroundings.
 6. **Guard against exposed block syntax.** If any rule, inline or block (heading, quote, table, list), produces an output line that starts, after its indentation, with block syntax the input line it came from did not start with (a list marker `-`, `*`, `+`, `N.` or `N)`; `#`; `>`; `|`; a thematic break; a code fence; a display-math opener `$$`; or a Setext underline, a line of only `=` or only `-` characters, which is block syntax only because of the non-blank line above it), that line is restored to its input text. Lyre's own fixed forms (`N, item`, count lines, labels, `Row N:`) never start with block syntax, so they are unaffected. Inline rules are guarded line by line; a block rule's output is restored as a whole block if any line exposes syntax. Quote output (R9) is exempt, because its contents already passed through the guard as a container (ADR 0003). Examples: `[- Build](https://x.test)`, `🎉 1. Done`, `**# Title**` and the heading `# - Build` stay as written. The line keeps some noise, but no structure is invented and the second pass sees the same line and makes the same decision. Where the syntax only appears because of the rendered block above (a heading rewritten into a paragraph line over a `===` paragraph, or a table separator under a new line with a pipe), a blank line is inserted between the two blocks, which keeps them as separate as they were in the input.
 7. **Normalize whitespace** introduced by removals only: no more than one blank line in a row, no trailing spaces on changed lines. A removed block between two blocks leaves exactly one blank line, so its neighbours never join. A block that a rule would remove or blank out is kept when indented or fenced code is the next text after it (a break, empty heading, empty quote or drawing line may be what ends a list above; without it the code would become list text on the next pass). Unchanged lines keep their original spacing.
@@ -66,9 +66,9 @@ Each rule lists the output at `normal` verbosity, then the differences at `brief
 | `*italic*`, `_italic_` | `italic` |
 | `***both***` | `both` |
 | `~~gone~~` | `(removed: gone)` |
-| `\*` and other backslash escapes | unchanged, backslash kept; an escaped character never pairs as a marker |
+| `\*` and other backslash escapes | unchanged, backslash kept (except R10); an escaped character never pairs as a marker |
 
-- Backslash escapes stay as written. Turning `\*literal\*` into `*literal*` would let a second pass strip those asterisks, breaking AC-5. The one exception is `\|` inside a table that R6 converts, because the converted output is never a table again.
+- Backslash escapes stay as written. Turning `\*literal\*` into `*literal*` would let a second pass strip those asterisks, breaking AC-5. The exceptions are `\|` inside a table that R6 converts, because the converted output is never a table again, and the escapes R10 removes.
 - Markers are removed only when they pair on the same line. An unpaired `*` or `_` is left as is (for example `2 * 3`, `snake_case`).
 - Underscore markers pair only when the closing marker is followed by whitespace, line end or `, ; : ! ? ) ]`, so `__init__.py` keeps its underscores (ADR 0003).
 - Single asterisks may pair inside a word (`un*believ*able`, CJK text) but never next to a digit, so `2*3*4` keeps its operators.
@@ -269,6 +269,25 @@ End of code.
 - An empty quote becomes a blank line, so the blocks around it stay apart.
 - When text sits directly above the quote, the unwrapped contents start after a blank line, so they stay a separate block on the next pass and quoted prose is not merged into the paragraph above. The quote's contents keep their own spacing; only the outer pass trims nothing inside them.
 
+### R10. Prose escapes (both profiles)
+
+TalkBack reads every backslash it meets, and most messaging apps show a Markdown escape with its backslash (Telegram, WhatsApp, Slack and plain clients do; Discord hides it). A prose escape loses its backslash only where the bare character cannot become markup on a second pass or in the app (ADR 0011).
+
+| Input | Output |
+| --- | --- |
+| `2 \* 3 = 6` | `2 * 3 = 6` |
+| `a \_ b`, `x \# 1`, `10 \- 4`, `a \~ b` | `a _ b`, `x # 1`, `10 - 4`, `a ~ b` |
+| `retry\*limit`, `\_name\_`, `\*literal\*` | unchanged |
+| `a \| b`, `a \[ b`, `` a \` b ``, `a \$ b`, `a \\ b` | unchanged |
+| `\# title`, `- \* x`, `1. \* x`, `(2) \* 3`, `2 \*3`, `2 \* \* 3` | unchanged |
+
+- The backslash goes only when the escaped character stands alone between two words: a space or tab directly on each side, and a letter or digit (any script) as the nearest character on each side past that whitespace.
+- Whitespace on both sides means the character is neither left- nor right-flanking, so it can never open or close emphasis or strikethrough (R1 or CommonMark). A word before it means it is not at the start of a line, list item, quote or table cell, so it cannot start a heading, list, quote or rule. A word after it keeps it out of a heading's closing `#` run and away from other escapes and protected spans.
+- These characters always keep their backslash, because they can pair or start markup anywhere on a line: `` ` `` (code spans), `[` and `]` (links), `|` (table cells), `$` (math in some apps) and `\` (one backslash would still be heard).
+- Code spans, fenced and indented code, display and inline math, URLs, link destinations and HTML tags are protected before this rule runs, so a backslash inside them is never removed.
+- The rule runs after every other inline rule, so the words it checks are the ones in the output, and a second pass makes the same decision.
+- `brief` and `full`: no difference. Mostly non-Latin replies: the same, since no words are inserted.
+
 ## Acceptance Criteria
 
 - [ ] **AC-1** Given a 9-row table with a value only in row 9, when formatted, then every cell value appears in the output in row order.
@@ -277,7 +296,7 @@ End of code.
 - [ ] **AC-4** Given a reply that is only `✅🎉`, when formatted with `emoji_policy: words`, then the output is `(done)`.
 - [ ] **AC-5** Given any input, when formatted twice with the same arguments, then the second output equals the first.
 - [ ] **AC-6** Given code blocks containing `**`, `|`, `#` and emoji, when formatted, then the code contents are byte-identical.
-- [ ] **AC-7** Given escaped pipes outside tables, backslash escapes, inline code, indented code and an unclosed fence, when formatted, then those spans are unchanged.
+- [ ] **AC-7** Given escaped pipes outside tables, backslash escapes that R10 keeps, inline code, indented code and an unclosed fence, when formatted, then those spans are unchanged.
 - [ ] **AC-8** Given input over 200,000 bytes, when formatted, then the output is the input object unchanged and the call returns in under 5 ms.
 - [ ] **AC-9** Given a 20 KB reply mixing every rule, when formatted, then it finishes in under 100 ms on CI hardware (ADR 0006).
 - [ ] **AC-10** Given a mostly Latin-script reply that the formatter transformed (not returned unchanged under AC-8 or AC-13), then in every transformed region the output contains no `|---` and no emoji (unless `emoji_policy: keep`); and on the `plain` profile also no paired `**` and no line starting with `#`. Transformed regions exclude protected spans and tables passed through under AC-2 or `table_style: unchanged`. Non-Latin replies are exempt from the emoji clause, because Script detection keeps their status emoji.
@@ -294,6 +313,7 @@ End of code.
 - [ ] **AC-21** Given a top-level indented code block and a list item containing indented code (`- Example:`, a blank line, then six-space-indented Python with `**` and an emoji in a string), when formatted twice, then each block's lines are byte-identical, each has exactly one label pair, and the output equals the first pass.
 - [ ] **AC-22** Given lines starting with `[- Build](https://x.test)`, `🎉 1. Done`, `**# Title**`, the heading `# - Build`, the two lines `Title` and `**===**`, and `> # Quoted title`, when formatted twice on the `plain` profile at every verbosity, then all but the quote are unchanged (no Setext heading appears), the quote becomes a heading inside the quote, no list, heading or quote structure appears that the input did not have, and the second pass equals the first.
 - [ ] **AC-23** Given a blockquote holding an indented code block (`>`, then `>     print("✅ **done**")`) and a fenced block (`> ```py` ... `> ````), when formatted twice on either profile, then the code lines after the quote markers are byte-identical, each block has one label pair, and the second pass equals the first. The same holds at `full` verbosity on the `plain` profile when the quote starts with a fenced block.
+- [ ] **AC-24** Given `2 \* 3 = 6`, `retry\*limit`, `\_name\_`, `a \| b`, `\# title` and `` `2 \* 3` `` in one reply, when formatted twice on either profile, then only the first loses its backslash, the code span is byte-identical, and the second pass equals the first.
 
 ## Edge Cases
 
@@ -313,7 +333,7 @@ End of code.
 - [ ] **Q2** Do Telegram, Discord and Slack screen readers announce rendered lists usefully enough that R5 should be skipped on the `markdown` profile? Decided by #2 and #13. Telegram (#2): no; its adapter does not render lists, so `-` markers stay as text and numbers sit on their own lines. Discord and Slack are open.
 - [ ] **Q3** Is the `markdown` platform list in the design doc correct for Teams, Mattermost and Google Chat? Checked against each adapter's `format_message` in #13.
 - [ ] **Q4** Are the table pass-through limits (50 rows, 10 columns, 500 characters) right? Tuned with the golden corpus in #15.
-- [x] **Q5** Do VoiceOver and NVDA at their default punctuation levels announce the backticks around inline code or the backslash in escapes? If they do, choose another boundary that a second pass can recognize, and update R1, R8, AC-5, AC-6 and AC-15 together. **Backticks: no**, on NVDA or TalkBack; the boundary stays. **Backslashes:** NVDA skips them, TalkBack reads them, in code and in prose. Prose escapes stay as written; removing them where safe is #51. VoiceOver was not tested.
+- [x] **Q5** Do VoiceOver and NVDA at their default punctuation levels announce the backticks around inline code or the backslash in escapes? If they do, choose another boundary that a second pass can recognize, and update R1, R8, AC-5, AC-6 and AC-15 together. **Backticks: no**, on NVDA or TalkBack; the boundary stays. **Backslashes:** NVDA skips them, TalkBack reads them, in code and in prose. Prose escapes that cannot become markup lose their backslash (R10, ADR 0011); the others stay as written. VoiceOver was not tested.
 - [x] **Q6** Do VoiceOver and NVDA speak box-drawing characters in unfenced tree lines? If they do, find a representation that keeps nesting and stays idempotent. **No.** NVDA and TalkBack skip them; tree lines stay unchanged. VoiceOver was not tested.
 
 ## Output / Deliverables

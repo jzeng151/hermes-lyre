@@ -45,6 +45,7 @@ CURATED = [
     "# Weekly report\n\n🎉 All **12** jobs passed.\n\n| Job | Result |\n|---|---|\n| build | ✅ |\n| lint | ❌ |",
     "Steps:\n\n- Open `config.yaml`\n- Set `retries: 3`\n- Run:\n\n  ```bash\n  make deploy\n  ```",
     "~~Old plan~~ New plan: use _staging_ first, then https://example.test/deploy?env=prod&id=7.",
+    "The total is 2 \\* 3 = 6, and \\_name\\_ stays. Use `retry\\*limit` in code.",
 ]
 REPLIES = CURATED
 
@@ -147,3 +148,27 @@ def test_ac14_status_words_survive_core_plain_text_formatter():
 def test_core_plain_text_formatter_keeps_markers_inside_code():
     ours = format_for_speech("```py\nx = '**literal**'\n```", profile="plain")
     assert "x = '**literal**'" in helpers.strip_markdown(ours)
+
+
+ESCAPES = "The total is 2 \\* 3 = 6, then a \\_ b, x \\# 1 and \\_name\\_ with retry\\*limit."
+
+
+@pytest.mark.parametrize("platform", list(ADAPTERS))
+def test_removed_escape_shows_the_bare_character(platform):
+    """R10: a prose escape between two words reaches the app as the bare character (#51)."""
+    cls, adapter = _adapter(platform)
+    ours = _lyre(ESCAPES, platform)
+    final = cls.format_message(adapter, ours)
+    shown = _shown(platform, final)
+    for removed in ("2 * 3 = 6", "a _ b", "x # 1"):
+        assert removed in ours and removed in shown, f"{platform}: {shown!r}"
+    # Paired and in-word escapes keep their backslash, and the app shows it as written.
+    assert "\\_name\\_" in shown and "retry\\*limit" in shown
+    # No emphasis appears: the app keeps every asterisk and underscore Lyre left.
+    for c in "*_":
+        assert shown.count(c) == ours.count(c), f"{platform}: {shown!r}"
+
+
+def test_removed_escape_survives_core_plain_text_formatter():
+    ours = format_for_speech("The total is 2 \\* 3 = 6, then a \\_ b.", profile="plain")
+    assert helpers.strip_markdown(ours) == "The total is 2 * 3 = 6, then a _ b."
