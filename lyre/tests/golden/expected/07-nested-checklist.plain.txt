@@ -7,4 +7,4 @@ Release checklist.
   2 sub-items.
   sub-item 1, (not done) Sign the tag
   sub-item 2, (not done) Push tags
-4, (not done) Announce
+4, (not done) Announce 📣

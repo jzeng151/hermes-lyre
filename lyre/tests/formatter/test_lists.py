@@ -98,7 +98,7 @@ def test_full_names_lists_and_ends_them():
     ("- only", "1 item.\n1, only"),
     ("- [x] Done\n- [ ] Open", "2 items.\n1, (done) Done\n2, (not done) Open"),
     ("* one\n\n* two", "2 items.\n1, one\n\n2, two"),
-    ("- **bold** item\n  continued *line*\n- 🎉 party", "2 items.\n1, bold item\ncontinued line\n2, party"),
+    ("- **bold** item\n  continued *line*\n- 🎉 party", "2 items.\n1, bold item\ncontinued line\n2, 🎉 party"),
     ("- run `npm **test**`", "1 item.\n1, run `npm **test**`"),
 ])
 def test_items(text, expected):
@@ -164,7 +164,8 @@ def test_idempotent(text, verbosity, profile):
     # block syntax inside an item: the list is left to default handling
     ("- a\n  ---\n- b", "- a\n  ---\n- b"),
     # an item emptied by the inline rules keeps only its number
-    ("- 🎉\n- b", "2 items.\n1,\n2, b"),
+    ("- ───\n- b", "2 items.\n1,\n2, b"),
+    ("- 🎉\n- b", "2 items.\n1, 🎉\n2, b"),  # an emoji with no word is kept (ADR 0008)
     # a change of marker type starts a separate list
     ("- Prerequisite\n\n1. Build\n2. Test", "1 item.\n1, Prerequisite\n\n2 items.\n1, Build\n2, Test"),
     # a link labelled x is not a task box
@@ -306,13 +307,15 @@ def test_reference_definition_keeps_list_container(text, verbosity, profile):
 @pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
 @pytest.mark.parametrize("profile", ["plain", "markdown"])
 def test_continuation_emission_preserves_block_context(text, verbosity, profile):
-    once = format_for_speech(text, profile=profile, verbosity=verbosity)
+    # The remove policy empties the emoji line; under words the emoji is kept (ADR 0008).
+    kw = dict(profile=profile, verbosity=verbosity, emoji_policy="remove")
+    once = format_for_speech(text, **kw)
     if "**" in text:
         assert text.splitlines()[-2].strip() in once
     else:
         # Keeping the separator cannot help when an emptied line exposes a table header.
         assert once.startswith("- a | b\n")
-    assert format_for_speech(once, profile=profile, verbosity=verbosity) == once
+    assert format_for_speech(once, **kw) == once
 
 
 @pytest.mark.parametrize("text", [
@@ -326,5 +329,5 @@ def test_list_rule_declines_unsafe_original_continuation(text, verbosity, profil
     from lyre.formatter.model import Block, Options
     from lyre.formatter.rules.lists import lists
 
-    opts = Options(profile=profile, verbosity=verbosity)
+    opts = Options(profile=profile, verbosity=verbosity, emoji_policy="remove")
     assert lists(Block("list", text.splitlines()), opts, _inline_fn(opts)) is None

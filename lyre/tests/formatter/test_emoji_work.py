@@ -24,7 +24,7 @@ def test_delimiter_patterns_scan_original_line_once(monkeypatch, runs, marks):
     monkeypatch.setattr(emphasis, "_EMPHASIS", [CountScans(p) for p in emphasis._EMPHASIS])
     monkeypatch.setattr(emphasis, "_STRIKE", CountScans(emphasis._STRIKE))
     text = f"{marks}🎉hi{marks} " * runs
-    assert emoji.emoji(text, Options(profile="markdown")) == f"{marks}hi{marks} " * runs
+    assert emoji.emoji(text, Options(profile="markdown", emoji_policy="remove")) == f"{marks}hi{marks} " * runs
     assert len(scans) == len(emphasis._EMPHASIS) + 1
     assert all(scanned is text for scanned in scans)
 
@@ -32,9 +32,18 @@ def test_delimiter_patterns_scan_original_line_once(monkeypatch, runs, marks):
 def test_many_emphasized_emoji_runs_stay_bounded():
     text = "*🎉hi* " * 2000
     start = perf_counter()
-    out = emoji.emoji(text, Options(profile="markdown"))
+    out = emoji.emoji(text, Options(profile="markdown", emoji_policy="remove"))
     elapsed = perf_counter() - start
     assert out == "*hi* " * 2000
+    assert elapsed < 1.0
+
+
+def test_many_status_emoji_runs_stay_bounded():
+    text = "*✅🎉hi* " * 2000
+    start = perf_counter()
+    out = emoji.emoji(text, Options(profile="markdown"))
+    elapsed = perf_counter() - start
+    assert out == "*(done) 🎉hi* " * 2000
     assert elapsed < 1.0
 
 
