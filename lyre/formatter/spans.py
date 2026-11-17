@@ -343,8 +343,9 @@ def _protect_code_spans(line: str, stash: Stash) -> str:
     targets = _link_target_ranges(line) if "](" in line else []
     target_ends = [end for _, end in targets]
     # Only math that the math pass will protect: never a range reaching into a destination or URL.
+    excluded = _merged([*targets, *urls]) if "$$" in line else []
     maths = [m.span() for m in INLINE_MATH_RE.finditer(line)
-             if not _overlaps(_merged([*targets, *urls]), m.start(), m.end())] if "$$" in line else []
+             if not _overlaps(excluded, m.start(), m.end())] if "$$" in line else []
     math_ends = [end for _, end in maths]
     by_len: dict[int, list[int]] = {}
     for idx, (_, size) in enumerate(runs):
