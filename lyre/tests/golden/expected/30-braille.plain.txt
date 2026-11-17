@@ -1,0 +1,3 @@
+In Braille, hello is ⠓⠑⠇⠇⠕.
+
+⠺⠕⠗⠇⠙

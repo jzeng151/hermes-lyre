@@ -1,0 +1,15 @@
+(failed) **2 tests failed** in `test_auth.py`:
+
+2 items.
+1, `test_login_expired_token`
+2, `test_refresh_rotates`
+
+Both fail on the same assertion:
+
+Code, 1 line:
+```text
+AssertionError: expected 401, got 200
+```
+End of code.
+
+The token check is skipped when `DEBUG=1`. Want me to fix it?

@@ -1,0 +1,10 @@
+Deploy finished (done).
+
+The production deploy completed in 4m 12s.
+
+3 items.
+1, Build: (done) passed
+2, Tests: (done) 412 passed, (warning) 3 skipped
+3, Migration: (done) applied
+
+Next run is scheduled for 18:00.

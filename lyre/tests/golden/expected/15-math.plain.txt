@@ -1,0 +1,7 @@
+The variance is:
+
+$$
+\sigma^2 = \frac{1}{n} \sum_{i=1}^{n} (x_i - \mu)^2
+$$
+
+where μ is the mean.

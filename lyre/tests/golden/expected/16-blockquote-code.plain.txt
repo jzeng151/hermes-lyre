@@ -1,0 +1,9 @@
+> From the docs:
+>
+> JavaScript code, 1 line:
+> ```js
+> const x = await fetch(url);
+> ```
+> End of code.
+>
+> Always await the call.

@@ -8,6 +8,7 @@ aside and the core puts the markers back.
 
 from __future__ import annotations
 
+from ..blocks import SETEXT_RE
 from ..model import Block, Options
 from ..spans import FENCE_OPEN_RE, LIST_ITEM_RE
 from . import InlineFn, register_block_rule
@@ -30,7 +31,8 @@ def blockquote(block: Block, opts: Options, inline: InlineFn) -> list[str] | Non
         return [""]  # a blank line keeps the blocks around the empty quote apart
     if opts.verbosity == "full" and opts.latin:
         # Indented code needs a blank line above it to stay code on the next pass.
-        gap = [""] if inner[0][:4] == "    " or inner[0].startswith("\t") else []
+        # So does a line of ``=`` or ``-``, or ``Quote:`` would become a Setext heading over it.
+        gap = [""] if inner[0][:4] == "    " or inner[0].startswith("\t") or SETEXT_RE.match(inner[0]) else []
         inner = ["Quote:", *gap, *inner, "End of quote."]
     prev = block.meta.get("prev")
     if prev is not None and prev.strip():

@@ -91,7 +91,7 @@ Each rule lists the output at `normal` verbosity, then the differences at `brief
 
 - A line that is only `---`, `***`, `___` (thematic break) becomes a blank line.
 - A line made only of box-drawing characters (U+2500 to U+257F), block elements (U+2580 to U+259F) and spaces is removed.
-- A line that mixes box-drawing characters with text (unfenced tree output such as `│   ├── src/`) is left unchanged. Replacing the characters with spaces would indent the line 4 or more spaces, which a second pass reads as code; dropping them would lose the nesting. Whether screen readers speak them is Q6.
+- A line that mixes box-drawing characters with text (unfenced tree output such as `│   ├── src/`) is left unchanged. Replacing the characters with spaces would indent the line 4 or more spaces, which a second pass reads as code; dropping them would lose the nesting. NVDA and TalkBack skip them (Q6, settled by #2).
 - Braille Patterns (U+2800 to U+28FF) are never removed or changed. Terminal spinners use them, but so does real Braille text, and the two cannot be told apart; spinners rarely appear in a final reply.
 - Applies to both profiles. Never inside protected spans.
 
@@ -227,7 +227,7 @@ End of code.
 - Code contents are byte-identical, including trailing spaces and blank lines.
 - Label comes from the fence info string, capitalized for known languages (Python, JavaScript, TypeScript, Bash, Shell, JSON, YAML, SQL, Rust, Go, Java, C, C++, C#, Ruby, PHP, HTML, CSS, Markdown, Diff). Unknown or missing: `Code, 12 lines:`.
 - Line count is the number of content lines. `1 line`, otherwise `N lines`.
-- Fence handling: **open question Q1**. Until #2 decides, fences are kept on every profile.
+- Fences are kept on every profile (Q1, settled by #2; [ADR 0007](../../adr/0007-code-fences-backticks-and-trees%20%28%232%2C%20%238%29.md)). Screen readers do not speak them on Telegram, and the labels are the only spoken start and end of the code.
 - Unclosed fence: the rest of the reply is treated as code and left unchanged, with no labels added.
 - Indented code blocks get the same labels with `Code, N lines:`; their indentation is kept. A blank line separates each label from an indented block, because a label line directly above it would make markdown read the code as part of the paragraph.
 - Idempotency, for fenced and indented blocks alike: if the nearest non-blank line before the block is already a label in Lyre's form and the nearest non-blank line after it is `End of code.`, no label is added.
@@ -253,7 +253,7 @@ End of code.
 - A link is rewritten only when the next pass protects its destination whole as a bare URL. Relative paths, fragments, other schemes and URLs ending in punctuation keep the link as written, so no pass can change the destination.
 - Text glued to a link (`[docs](u)suffix`, `[a](u)[b](v)`) gets a space after the emitted URL, so it never joins the address. Empty destinations (`[back]()`) keep the link as written.
 - A label that is a protected span (inline code, even across lines) stays a token in the output; only the label-equals-URL comparison reads its text.
-- Inline code keeps its backticks on both profiles. The backticks are the protection boundary: without them, a second pass would treat `**literal**` or a status emoji inside the code as prose and change it, breaking AC-5 and AC-6. Whether screen readers announce the backticks is Q5.
+- Inline code keeps its backticks on both profiles. The backticks are the protection boundary: without them, a second pass would treat `**literal**` or a status emoji inside the code as prose and change it, breaking AC-5 and AC-6. NVDA and TalkBack do not speak them (Q5, settled by #2).
 - Inline code containing a backtick (double-backtick spans) keeps its delimiters and inner text exactly.
 - `markdown` profile: links are still rewritten, because the raw URL is what lets a listener open or copy it.
 - Link titles (`[a](u "title")`) are dropped; angle-bracket targets (`[a](<u>)`) lose their brackets.
@@ -309,12 +309,12 @@ End of code.
 
 ## Open Questions
 
-- [ ] **Q1** Code fences: keep everywhere, or strip on plain clients (SMS, Signal, iMessage) and keep on clients that render them (including WhatsApp)? Decided by the baseline test in #2.
-- [ ] **Q2** Do Telegram, Discord and Slack screen readers announce rendered lists usefully enough that R5 should be skipped on the `markdown` profile? Decided by #2 and #13.
+- [x] **Q1** Code fences: keep everywhere, or strip on plain clients (SMS, Signal, iMessage) and keep on clients that render them (including WhatsApp)? **Keep everywhere.** Neither NVDA nor TalkBack speaks them on Telegram ([ADR 0007](../../adr/0007-code-fences-backticks-and-trees%20%28%232%2C%20%238%29.md)). Plain-text clients were not tested.
+- [ ] **Q2** Do Telegram, Discord and Slack screen readers announce rendered lists usefully enough that R5 should be skipped on the `markdown` profile? Decided by #2 and #13. Telegram (#2): no; its adapter does not render lists, so `-` markers stay as text and numbers sit on their own lines. Discord and Slack are open.
 - [ ] **Q3** Is the `markdown` platform list in the design doc correct for Teams, Mattermost and Google Chat? Checked against each adapter's `format_message` in #13.
 - [ ] **Q4** Are the table pass-through limits (50 rows, 10 columns, 500 characters) right? Tuned with the golden corpus in #15.
-- [ ] **Q5** Do VoiceOver and NVDA at their default punctuation levels announce the backticks around inline code or the backslash in escapes? If they do, choose another boundary that a second pass can recognize, and update R1, R8, AC-5, AC-6 and AC-15 together. Decided by the baseline test in #2.
-- [ ] **Q6** Do VoiceOver and NVDA speak box-drawing characters in unfenced tree lines? If they do, find a representation that keeps nesting and stays idempotent. Decided by the baseline test in #2.
+- [x] **Q5** Do VoiceOver and NVDA at their default punctuation levels announce the backticks around inline code or the backslash in escapes? If they do, choose another boundary that a second pass can recognize, and update R1, R8, AC-5, AC-6 and AC-15 together. **Backticks: no**, on NVDA or TalkBack; the boundary stays. **Backslashes:** NVDA skips them, TalkBack reads them, in code and in prose. Prose escapes stay as written; removing them where safe is #51. VoiceOver was not tested.
+- [x] **Q6** Do VoiceOver and NVDA speak box-drawing characters in unfenced tree lines? If they do, find a representation that keeps nesting and stays idempotent. **No.** NVDA and TalkBack skip them; tree lines stay unchanged. VoiceOver was not tested.
 
 ## Output / Deliverables
 

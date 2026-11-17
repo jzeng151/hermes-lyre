@@ -1,0 +1,11 @@
+Here's the fix. The loop modified the list while iterating:
+
+Python code, 3 lines:
+```python
+items = [x for x in items if x.valid]
+for item in items:
+    process(item)
+```
+End of code.
+
+This builds a new list first, so nothing is skipped.

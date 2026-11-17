@@ -1,0 +1,10 @@
+Release checklist.
+
+4 items.
+1, (done) Bump version
+2, (done) Update changelog
+3, (not done) Tag release
+  2 sub-items.
+  sub-item 1, (not done) Sign the tag
+  sub-item 2, (not done) Push tags
+4, (not done) Announce

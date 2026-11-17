@@ -10,5 +10,6 @@ Decisions made while building Lyre, one file per decision, named with the issue 
 | [0004](0004-emoji-by-presentation%20%28%235%29.md) | Match emoji by presentation, not by Unicode block | #5 | Accepted |
 | [0005](0005-hook-failure-logging%20%28%2310%29.md) | Log hook failures with the traceback, never the reply | #10 | Accepted |
 | [0006](0006-formatting-time-budget%20%28%2310%29.md) | Raise the 20 KB formatting budget on CI to 100 ms | #10, #3 | Accepted |
+| [0007](0007-code-fences-backticks-and-trees%20%28%232%2C%20%238%29.md) | Keep code fences and backticks, leave tree lines unchanged | #2, #8 | Accepted |
 
 Format: Context, Decision, Consequences (after Michael Nygard).

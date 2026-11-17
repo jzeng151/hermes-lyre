@@ -12,7 +12,7 @@ from dataclasses import dataclass, field
 import re
 
 from ..model import Block, Options
-from ..blocks import is_thematic_break, syntax_categories
+from ..blocks import QUOTE_RE, is_thematic_break, syntax_categories
 from ..spans import LIST_ITEM_RE, indent_width, is_block_token_line
 from . import InlineFn, register_block_rule
 from .code import LABEL_RE, already_labelled, labelled
@@ -93,7 +93,17 @@ def _parse(lines: list[str]) -> list[_List] | None:
                 # Four extra columns are indented code (or lazy paragraph text without a blank),
                 # not a child marker. Keep this unsupported structure rather than invent a list.
                 return None
-            if not stack or (stack[-1].items and indent >= stack[-1].items[-1].column):
+            nests = not stack or (stack[-1].items and indent >= stack[-1].items[-1].column)
+            above = lines[i - 1] if i else ""
+            above_item = LIST_ITEM_RE.match(above)
+            above_text = (above[above_item.end():] if above_item else above).strip()
+            interrupts = not prev_blank and bool(above_text) and not is_block_token_line(above_text)
+            if stack and nests and interrupts and m.group(2)[0].isdigit() and m.group(2)[:-1].lstrip("0") != "1":
+                # An ordered list interrupts the item's text only when it starts at 1 (CommonMark):
+                # ``2. not a child`` is a continuation line. Speaking it would expose a marker on
+                # the next pass, so leave this list as written.
+                return None
+            if nests:
                 # A marker nests only when it reaches the content column of the item above;
                 # a smaller indent (`` - second`` under ``- first``) is a sibling.
                 _new_list(stack, roots, len(stack) + 1, indent, kind)
@@ -282,6 +292,10 @@ def lists(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
         out.extend(part + [""] * trailing)
     # Trailing blanks may separate this list from protected indented code in the next block.
     # Keep them after the full-verbosity end label too, so the next pass still sees code.
+    if out and prev is not None and QUOTE_RE.match(prev):
+        # Spoken lines directly under a kept quote would become its lazy continuation on the
+        # next pass (labels and all); a blank line keeps the list its own block.
+        out.insert(0, "")
     return out
 
 

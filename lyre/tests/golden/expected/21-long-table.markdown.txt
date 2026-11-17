@@ -1,0 +1,14 @@
+Table, 12 rows, 4 columns: Day, High, Low, Rain.
+Row 1: Day Day 1, High 21°, Low 11°, Rain 5%.
+Row 2: Day Day 2, High 22°, Low 12°, Rain 10%.
+Row 3: Day Day 3, High 23°, Low 13°, Rain 15%.
+Row 4: Day Day 4, High 24°, Low 14°, Rain 20%.
+Row 5: Day Day 5, High 25°, Low 15°, Rain 25%.
+Row 6: Day Day 6, High 26°, Low 16°, Rain 30%.
+Row 7: Day Day 7, High 27°, Low 17°, Rain 35%.
+Row 8: Day Day 8, High 28°, Low 18°, Rain 40%.
+Row 9: Day Day 9, High 29°, Low 19°, Rain 45%.
+Row 10: Day Day 10, High 30°, Low 20°, Rain 50%.
+Row 11: Day Day 11, High 31°, Low 21°, Rain 55%.
+Row 12: Day Day 12, High 32°, Low 22°, Rain 60%.
+End of table.

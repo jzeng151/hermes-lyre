@@ -1,0 +1,10 @@
+Run this in the shell:
+
+Code, 2 lines:
+
+    export PATH="$HOME/.local/bin:$PATH"
+    hash -r
+
+End of code.
+
+Then open a new terminal.

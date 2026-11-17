@@ -1,0 +1,17 @@
+2 items.
+1, Backend
+  1 sub-item.
+  sub-item 1, API
+  1 level 3 item.
+  level 3 item 1, Add the route:
+
+  Python code, 2 lines:
+      ```python
+      @app.get('/health')
+      def health(): return {'ok': True}
+      ```
+  End of code.
+
+2, Frontend
+  1 sub-item.
+  sub-item 1, Show the status badge (done)
