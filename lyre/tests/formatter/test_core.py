@@ -544,7 +544,8 @@ def test_quote_code_keeps_trailing_spaces(temp_rules):
 @pytest.mark.parametrize("text,expected", [
     ('<span title="**literal** `">**prose**</span> `', '<span title="**literal** `">prose</span> `'),
     ("[label][id]\n\n[id]: /path/**literal**", "[label][id]\n\n[id]: /path/**literal**"),
-    ("[id]: </a b/**x**> \"**title**\"", "[id]: </a b/**x**> \"title\""),
+    # a same-line title is protected with the destination (ADR 0009)
+    ("[id]: </a b/**x**> \"**title**\"", "[id]: </a b/**x**> \"**title**\""),
 ])
 def test_review_round_eight_protection(temp_rules, text, expected):
     _strip(temp_rules)

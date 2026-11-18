@@ -27,13 +27,14 @@ INLINE_MATH_RE = re.compile(r"\$\$[^$\n]+\$\$")
 # Inline math on one line (ADR 0009): ``$$...$$``; tight ``$...$`` as in Pandoc's
 # tex_math_dollars (the opening ``$`` is followed by a non-space, the closing one follows a
 # non-space and is not followed by a digit, so ``$5 and $10`` is not math); ``\(...\)`` and
-# ``\[...\]``. A body never holds its own opener, so a failed search stops at the next opener
-# and the scan stays linear.
+# ``\[...\]``. A body never contains a ``$`` (escaped or not), ``\(``/``\)`` or ``\[``/``\]``
+# respectively, so every candidate opener's scan ends at the next opener or closer of its kind
+# and a whole line costs linear time. ``$a\$b$`` is therefore not math (left as prose).
 MATH_RE = re.compile(
     r"\$\$[^$\n]+\$\$"
-    r"|(?<!\$)\$(?=[^\s$])(?:\\.|[^\\$\n])+?(?<!\s)\$(?![\d$])"
-    r"|\\\((?:[^\\\n]|\\[^()\n])+?\\\)"
-    r"|\\\[(?:[^\\\n]|\\[^\[\]\n])+?\\\]")
+    r"|(?<!\$)\$(?=[^\s$])(?:[^\\$\n]|\\[^$\n])+?(?<!\s)\$(?![\d$])"
+    r"|\\\((?:[^\\\n]|\\(?![()\n]))+?\\\)"
+    r"|\\\[(?:[^\\\n]|\\(?![\[\]\n]))+?\\\]")
 # A raw ``|`` is not valid in a URL (it is written %7C), and it ends a table cell.
 URL_RE = re.compile("(?:https?|ftp)://[^\\s<>|\ue000\ue001]+")
 URL_TRAILING = ".,;:!?'\"*_"
@@ -341,7 +342,8 @@ def _math_spans(line: str, blocked: list[tuple[int, int]]) -> list[tuple[int, in
     while (m := MATH_RE.search(line, pos)) is not None:
         if _escaped(line, m.start()) or _overlaps(blocked, m.start(), m.end()):
             # Not math from here: the next character may still open math, as on a second
-            # pass where this opener is gone. Each body stops at its next opener: linear.
+            # pass where this opener is gone. Each position is tried as a start at most
+            # once, and a body never passes the next opener or closer of its kind: linear.
             pos = m.start() + 1
             continue
         spans.append(m.span())
@@ -373,8 +375,9 @@ def _protect_code_spans(line: str, stash: Stash) -> str:
     target_ends = [end for _, end in targets]
     # Only math that the math pass will protect: never a range reaching into a destination or URL.
     # Code spans take precedence over the other inline math forms (ADR 0009).
+    excluded = _merged([*targets, *urls]) if "$$" in line else []
     maths = [m.span() for m in INLINE_MATH_RE.finditer(line)
-             if not _overlaps(_merged([*targets, *urls]), m.start(), m.end())] if "$$" in line else []
+             if not _overlaps(excluded, m.start(), m.end())] if "$$" in line else []
     math_ends = [end for _, end in maths]
     by_len: dict[int, list[int]] = {}
     for idx, (_, size) in enumerate(runs):
@@ -585,7 +588,9 @@ def _sub_outside_urls(pattern: re.Pattern, kind: str, line: str, stash: Stash, s
     return pattern.sub(put, line)
 
 
-REF_DEF_RE = re.compile(r"^( {0,3}\[[^\]\n]+\]:[ \t]*)(<[^>\n]*>|\S+)")
+# A title on the same line is kept with the destination (ADR 0009).
+REF_DEF_RE = re.compile(r"""^( {0,3}\[[^\]\n]+\]:[ \t]*)((?:<[^>\n]*>|\S+)"""
+                        r"""(?:[ \t]+(?:"[^"\n]*"|'[^'\n]*'|\([^()\n]*\)))?)""")
 
 
 def protect_cells(line: str, stash: Stash) -> str:
@@ -608,7 +613,7 @@ def protect_cells(line: str, stash: Stash) -> str:
 def protect_inline(line: str, stash: Stash) -> str:
     """Protect inline code, inline display math, escapes, HTML tags, link targets and URLs."""
     ref = REF_DEF_RE.match(line)
-    if ref:  # a reference definition (``[id]: /path``): its destination is a link target
+    if ref:  # a reference definition (``[id]: /path "title"``): its target is protected whole
         line = ref.group(1) + stash.put("t", ref.group(2)) + line[ref.end():]
     if "`" in line:
         line = _protect_code_spans(line, stash)

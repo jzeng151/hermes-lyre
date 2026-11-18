@@ -64,7 +64,6 @@ MATH = [
     "\\[a*b*c\\]",
     "$a$",
     "Inline $E = m*c^2*$ and \\(a_b_c\\) together.",
-    "$\\$5 *x*$",
 ]
 
 
@@ -166,3 +165,29 @@ def test_escaped_dollar_does_not_hide_the_math_after_it():
     once = fmt(text)
     assert "$x*y*$" in once
     assert fmt(once) == once
+
+
+@pytest.mark.parametrize("text", [r"$\$5 *x*$", r"$a\$b *c*$"])
+def test_math_body_never_holds_a_dollar(text):
+    # A body that would pass an escaped ``$`` is not math: the text stays prose (fail-open),
+    # which keeps every candidate scan bounded by the next ``$`` (ADR 0009).
+    out = fmt(text)
+    assert "*" not in out
+    assert fmt(out) == out
+
+
+def test_double_backslash_inside_paren_math_is_kept():
+    text = r"\(a \\ *b*\) and \(\frac{*a*}{b}\)"
+    assert fmt(text) == text
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+@pytest.mark.parametrize("text", [
+    '[r]: https://x.test/a "t *x*"',
+    "[r]: https://x.test/a 't *x*'",
+    "[r]: https://x.test/a (t *x*)",
+    '[r]: <https://x.test/a b> "t *x*"',
+    'See [the policy][r].\n\n[r]: https://x.test/a "Do *not* share"',
+])
+def test_reference_definition_title_is_kept(text, profile):
+    assert fmt(text, profile) == text
