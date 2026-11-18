@@ -40,6 +40,18 @@ def test_ac9_twenty_kb_mixed_reply_within_budget():
     assert _best_of(_fixture(20_000)) < BUDGET_S
 
 
+def test_link_targets_math_and_code_runs_scale_linearly():
+    # Link destinations, display math and two backtick runs on one line used to rebuild the
+    # exclusion ranges once per math span, so a 104 KB line took several seconds.
+    def reply(n: int) -> str:
+        return "[a](b) " * n + "$$x$$ " * n + "`code` `more`"
+
+    small = _best_of(reply(2_000), runs=1)
+    large = _best_of(reply(8_000), runs=1)
+    assert large < 2.0
+    assert large < 8 * max(small, 0.01)  # 4x the input: linear is ~4x, quadratic ~16x
+
+
 def test_ac8_one_megabyte_is_skipped_not_processed():
     text = _fixture(20_000) * 50
     assert len(text.encode()) > 200_000
