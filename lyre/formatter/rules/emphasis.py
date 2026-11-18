@@ -44,7 +44,8 @@ def mask_keycaps(text: str) -> tuple[str, str | None]:
     """
     if "*\uFE0F" not in text and "*\u20E3" not in text:
         return text, None
-    stand_in = next((chr(code) for code in range(0xE000, 0xF900) if chr(code) not in text), None)
+    present = set(text)  # one pass, so a reply full of private-use characters stays linear
+    stand_in = next((chr(code) for code in range(0xE000, 0xF900) if chr(code) not in present), None)
     if stand_in is None:
         return text, None
     return _KEYCAP_STAR.sub(stand_in, text), stand_in
