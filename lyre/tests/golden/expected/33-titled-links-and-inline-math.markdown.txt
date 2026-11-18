@@ -1,0 +1,12 @@
+## Sharing the **report**
+
+Read the [policy](https://example.test/policy "Do not share externally") before you send it.
+The ![chart](https://example.test/chart.png 'Draft numbers') is a **draft**.
+The summary, link: https://example.test/summary is final.
+
+The error term is $e = y*x*b$ and the rate is \(r_1 * r_2 * r_3\).
+
+Display form: \[a*b*c\]
+
+Pricing is $5 for one and *only* $10 for three, or $3.50 each.
+Escaped dollars \$a *b* c\$ are not math, and `echo $HOME*$USER` stays code.

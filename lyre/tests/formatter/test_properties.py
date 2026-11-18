@@ -25,7 +25,9 @@ FENCE_RE = re.compile(r"^(`{3,}|~{3,})[^\n]*\n(.*?)\n\1$", re.M | re.S)
 MATH_RE = re.compile(r"^\$\$\n.*?\n\$\$$", re.M | re.S)
 INLINE_CODE_RE = re.compile(r"`[^`\n]+`")
 URL_RE = re.compile(r"https?://\S+")
+STATUS_EMOJI_RE = re.compile("[\u2705\u274c\u26a0]")  # the status emoji fuzzgen draws
 EMOJI_RE = re.compile("[\u2705\u274c\u26a0\U0001f389\U0001f680\U0001f525\u2728\U0001f44d\U0001f4dd\U0001f4a1]")
+OTHER_EMOJI = "\U0001f389\U0001f680\U0001f525\u2728\U0001f44d\U0001f4dd\U0001f4a1"  # no spoken word
 
 
 def _fences(text: str) -> list[str]:
@@ -71,6 +73,28 @@ def test_ac10_no_spoken_markup_outside_protected_spans(seed):
     assert "|---" not in rest, f"seed {seed}"
     assert not re.search(r"\*\*[^*\n]+\*\*", rest), f"seed {seed}: paired ** left"
     assert not any(line.startswith("#") for line in rest.split("\n")), f"seed {seed}: heading marker left"
+    if letters and latin * 2 >= letters:
+        assert not STATUS_EMOJI_RE.search(rest), f"seed {seed}: status emoji left"
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_words_policy_keeps_every_emoji_without_a_word(seed):
+    """ADR 0008: under words, no emoji that Lyre has no word for is lost."""
+    text = fuzzgen.reply(seed)
+    out = format_for_speech(text, profile="plain")
+    for ch in OTHER_EMOJI:
+        assert out.count(ch) >= text.count(ch), f"seed {seed}: {ch!r} removed"
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_remove_policy_leaves_no_emoji_outside_protected_spans(seed):
+    text = fuzzgen.reply(seed)
+    out = format_for_speech(text, profile="plain", emoji_policy="remove")
+    if out == text:
+        return
+    rest = _outside_protected(out)
+    latin = sum(c.isascii() and c.isalpha() for c in rest)
+    letters = sum(c.isalpha() for c in rest)
     if letters and latin * 2 >= letters:
         assert not EMOJI_RE.search(rest), f"seed {seed}: emoji left"
 

@@ -15,7 +15,7 @@ Given a final Hermes reply, return text a screen reader reads cleanly, keeping e
 - No change to code contents, URLs, or any text inside a protected span.
 - No currency, number, date or abbreviation expansion. Screen readers already handle these.
 - No HTML handling. HTML tags (`<details>`, `<br>`) are protected spans and pass through unchanged; text between tags is prose.
-- No math rendering. Display math (`$$...$$`) is a protected span and passes through byte-identical. Single-dollar inline math is not recognized, because `$10` is far more common in replies.
+- No math rendering. Display math (`$$...$$`) and inline math on one line (`$$...$$`, `\(...\)`, `\[...\]` and tight `$...$`) are protected spans and pass through byte-identical. Single-dollar math needs Pandoc's tight form (a non-space after the opening `$`, a non-space before the closing `$`, and no digit right after it), so prices such as `$5 and $10` are not math (ADR 0009).
 - No translation. Inserted words are English only.
 - No I/O, no Hermes imports, no logging inside the formatter.
 
@@ -42,7 +42,7 @@ def format_for_speech(
 ## Processing model
 
 1. **Size gate.** Over the byte cap: return input.
-2. **Protect spans.** In this order: fenced code blocks (``` and ~~~, with or without an info string, at any indentation, so a fence nested in list output is still a fence on the next pass), display math (`$$...$$`, on one line or across lines), indented code blocks (after a blank line: 4 spaces or a tab at the top level, or the list item's content column plus 4 inside a list item), inline code, backslash escapes (`\` followed by an ASCII punctuation character), HTML tags, bare URLs and link targets are replaced by placeholders. Nothing inside a placeholder is ever modified. Lyre's own output never starts a line with 4 or more spaces outside a protected span, so a second pass never finds new indented code.
+2. **Protect spans.** In this order: fenced code blocks (``` and ~~~, with or without an info string, at any indentation, so a fence nested in list output is still a fence on the next pass), display math (`$$...$$`, on one line or across lines), indented code blocks (after a blank line: 4 spaces or a tab at the top level, or the list item's content column plus 4 inside a list item), inline code, inline math on one line (`$$...$$`, `\(...\)`, `\[...\]`, and tight `$...$` as defined in Non-goals; never reaching into a link destination or URL, and not starting at an escaped `$` or `\(`), backslash escapes (`\` followed by an ASCII punctuation character), HTML tags, link targets, bare URLs, whole links or images whose target has a title (R8), and a reference definition's destination with any title on the same line are replaced by placeholders. Nothing inside a placeholder is ever modified. Lyre's own output never starts a line with 4 or more spaces outside a protected span, so a second pass never finds new indented code.
 3. **Block pass.** Lines are grouped into blocks: table, list, heading, rule, blockquote, paragraph. One linear pass; no backtracking regexes. A blockquote is a container: its `>` markers are removed and its contents go through steps 2 to 7 on their own, span protection included, so fenced or indented code inside a quote is protected and `> # Title` is a heading inside the quote. If any quote is nested more than 10 deep, the outermost quote holding it is left unchanged, which keeps the work linear in practice and stays idempotent.
 4. **Rules.** Each block is handed to the rule that owns it. Inline rules (emphasis, emoji, links) run on paragraph, list item, heading and table cell text.
 5. **Restore spans**, applying the code and link rules to the placeholders' surroundings.
@@ -53,8 +53,8 @@ def format_for_speech(
 
 If fewer than half of the letters outside protected spans are Latin script, the reply is treated as non-English:
 
-- Applied: emphasis markers, horizontal rules, box drawing, decorative emoji removal.
-- Not applied: anything that inserts English words (status emoji words, list counts, table sentences, code labels, `link:` labels, `(removed: ...)`). Status emoji are kept as they are.
+- Applied: emphasis markers, horizontal rules, box drawing, and emoji removal under `emoji_policy: remove`.
+- Not applied: anything that inserts English words (status emoji words, list counts, table sentences, code labels, `link:` labels, `(removed: ...)`). Under `emoji_policy: words` every emoji, status emoji included, is kept as written.
 
 ## Rules
 
@@ -74,6 +74,7 @@ Each rule lists the output at `normal` verbosity, then the differences at `brief
 - Markers are removed only when they pair on the same line. An unpaired `*` or `_` is left as is (for example `2 * 3`, `snake_case`).
 - Underscore markers pair only when the closing marker is followed by whitespace, line end or `, ; : ! ? ) ]`, so `__init__.py` keeps its underscores (ADR 0003).
 - Single asterisks may pair inside a word (`un*believ*able`, CJK text) but never next to a digit, so `2*3*4` keeps its operators.
+- The `*` that starts a keycap emoji (`*` followed by U+FE0F and/or U+20E3, as in `*️⃣`) is part of the emoji and never an emphasis delimiter, on every emoji policy: `Press *️⃣ for *help*` -> `Press *️⃣ for help` on `plain`.
 - `brief`: strikethrough becomes `(removed: gone)` as well; no difference.
 - `full`: no difference.
 - `markdown` profile: strikethrough still becomes `(removed: gone)`, because several clients render it as plain text and the meaning is easy to miss.
@@ -110,15 +111,15 @@ Each rule lists the output at `normal` verbosity, then the differences at `brief
 | 🟡 | `(yellow)` |
 | 🟢 | `(green)` |
 | ⏳ | `(pending)` |
-| any other emoji | removed |
 
-- Whole sequences are one emoji: variation selectors (U+FE0E, U+FE0F), skin tones (U+1F3FB to U+1F3FF), zero-width joiner sequences, keycaps, tag flags. No orphan code point is left behind.
-- An emoji is a character that displays as emoji by default, or a text-default character followed by U+FE0F, or a status symbol from the table. Symbols that share Unicode blocks with emoji but have no emoji presentation (`♯`, `♭`, `★`, `✓`) are never removed (ADR 0004).
-- Spacing next to emphasis: an emphasis delimiter touching the emoji stays touching the text (`**✅ Done**` -> `**(done) Done**`). This includes paired intraword asterisks: `un*🎉believ*able` -> `un*believ*able` and `*Hello🎉*world` -> `*Hello*world` on `markdown`, with the markers removed on `plain`. Literal intraword underscores keep their existing behavior. Delimiters of neighboring spans remain separate (`*one*🎉**two**` -> `*one* **two**` on `markdown`, `one two` on `plain`); an emptied wrapper is removed.
-- A run of emoji becomes its status words joined by single spaces: `✅ 🎉 ⚠️` -> `(done) (warning)`.
-- Spacing is normalized only where an emoji was removed: `Hello 🎉 world` -> `Hello world`.
-- A line that becomes empty after removal is removed.
-- `emoji_policy: remove`: all emoji removed, status emoji included.
+Every other emoji is kept as written, byte for byte: Lyre has no word for it, and the screen reader speaks its own name for it (ADR 0008). Flags, keycaps, stars and weather emoji often carry meaning (`The answer is 🇫🇷`, `Use key 1️⃣`, `Rated ⭐⭐⭐⭐`), so removing them loses information. Decorative emoji, such as `🚀` at the start of a heading, are kept too.
+
+- Whole sequences are one emoji: variation selectors (U+FE0E, U+FE0F), skin tones (U+1F3FB to U+1F3FF), zero-width joiner sequences, keycaps, tag flags. No orphan code point is left behind. A status emoji with a skin tone still becomes its word (`✅🏻 ok` -> `(done) ok`).
+- An emoji is a character that displays as emoji by default, or a text-default character followed by U+FE0F, or a status symbol from the table. Symbols that share Unicode blocks with emoji but have no emoji presentation (`♯`, `♭`, `★`, `✓`) are never treated as emoji (ADR 0004).
+- Spacing next to emphasis: an emphasis delimiter touching the emoji stays touching the text (`**✅ Done**` -> `**(done) Done**`). This includes paired intraword asterisks: `un*✅believ*able` -> `un*(done) believ*able` on `markdown`, with the markers removed on `plain`. Literal intraword underscores keep their existing behavior.
+- A run of emoji separated only by spaces keeps its order: each status emoji becomes its word, set off by single spaces, and every other emoji keeps its original bytes and the gap it had to a neighbouring kept emoji: `✅ 🎉 ⚠️` -> `(done) 🎉 (warning)`, `✅🎉` -> `(done) 🎉`. A run with no status emoji is left exactly as written, spacing included: `Hello 🎉🎊  world` is unchanged.
+- Spacing is touched only next to a status word: `Status✅` -> `Status (done)`.
+- `emoji_policy: remove`: all emoji removed, status emoji included. This loses information: a flag, keycap or rating that carried meaning disappears (`The answer is 🇫🇷, not 🇩🇪.` -> `The answer is, not.`). Spacing is normalized only where an emoji was removed (`Hello 🎉 world` -> `Hello world`); a line that becomes empty is removed. Emphasis delimiters around a removed emoji follow the same rules as above: `un*🎉believ*able` -> `un*believ*able`, delimiters of neighboring spans remain separate (`*one*🎉**two**` -> `*one* **two**` on `markdown`, `one two` on `plain`), and an emptied wrapper is removed.
 - `emoji_policy: keep`: rule skipped.
 - `brief` and `full`: no difference.
 - The words match core's opt-in WhatsApp plain-output formatter, so running both gives one label, not two.
@@ -157,8 +158,8 @@ Output (`normal`):
 - Prose after a nested list belongs to the item whose content column it reaches.
 - A marker nests only when it reaches the content column of the item above; a smaller extra indent makes a sibling.
 - A list whose item holds a fence with no closing line inside the item is left to the default inline handling.
-- A continuation line whose rewrite would start with block syntax it did not start with (a list marker revealed by removing an emoji) is kept as written.
-- An item emptied by the inline rules (only decoration) keeps its number and nothing else.
+- A continuation line whose rewrite would start with block syntax it did not start with (a list marker revealed by removing an emoji under `emoji_policy: remove`) is kept as written.
+- An item emptied by the inline rules (only decoration, such as a box-drawing line) keeps its number and nothing else.
 - A list whose item continuation lines hold a heading, quote, thematic break or table is left to the default inline handling, because speaking it would change what the next pass sees.
 - A list item's inline code is kept.
 - A single-item list still gets `1 item.`.
@@ -251,6 +252,7 @@ End of code.
 | bare `https://x.test/...` | unchanged |
 | `[![badge](https://ci.test/b.svg)](https://ci.test/build)` | `Image: badge, source: https://ci.test/b.svg, link: https://ci.test/build` |
 | `[dir](./_private_)`, `[s](#top)` | unchanged (see below) |
+| `[policy](https://x.test "Do not share")` | unchanged, label and title included (both profiles) |
 
 - URLs are never shortened, decoded or re-encoded.
 - A link is rewritten only when the next pass protects its destination whole as a bare URL. Relative paths, fragments, other schemes and URLs ending in punctuation keep the link as written, so no pass can change the destination.
@@ -259,7 +261,7 @@ End of code.
 - Inline code keeps its backticks on both profiles. The backticks are the protection boundary: without them, a second pass would treat `**literal**` or a status emoji inside the code as prose and change it, breaking AC-5 and AC-6. NVDA and TalkBack do not speak them (Q5, settled by #2).
 - Inline code containing a backtick (double-backtick spans) keeps its delimiters and inner text exactly.
 - `markdown` profile: links are still rewritten, because the raw URL is what lets a listener open or copy it.
-- Link titles (`[a](u "title")`) are dropped; angle-bracket targets (`[a](<u>)`) lose their brackets.
+- A link or image whose target has a title (`"title"`, `'title'` or `(title)` after the destination) is kept exactly as written, so the title is never lost; emphasis around it is still removed. A reference definition (`[r]: u "title"`) keeps its title when the title is on the same line as the destination; a title on the next line is still treated as prose (ADR 0009). Angle-bracket targets (`[a](<u>)`) lose their brackets.
 - Mostly non-Latin replies keep markdown links, because `link:` and `Image:` are English; autolinks still lose their angle brackets.
 - `brief` and `full`: no difference.
 
@@ -277,13 +279,13 @@ End of code.
 - [ ] **AC-1** Given a 9-row table with a value only in row 9, when formatted, then every cell value appears in the output in row order.
 - [ ] **AC-2** Given a malformed table (no separator row, or an extra cell in a body row), when formatted, then the table lines are byte-identical to the input.
 - [ ] **AC-3** Given a reply containing a 600-character signed URL with `%`, `&`, `=` and `_`, when formatted on either profile, then the URL appears byte for byte.
-- [ ] **AC-4** Given a reply that is only `✅🎉`, when formatted with `emoji_policy: words`, then the output is `(done)`.
+- [ ] **AC-4** Given a reply that is only `✅🎉`, when formatted with `emoji_policy: words`, then the output is `(done) 🎉`.
 - [ ] **AC-5** Given any input, when formatted twice with the same arguments, then the second output equals the first.
 - [ ] **AC-6** Given code blocks containing `**`, `|`, `#` and emoji, when formatted, then the code contents are byte-identical.
 - [ ] **AC-7** Given escaped pipes outside tables, backslash escapes, inline code, indented code and an unclosed fence, when formatted, then those spans are unchanged.
 - [ ] **AC-8** Given input over 200,000 bytes, when formatted, then the output is the input object unchanged and the call returns in under 5 ms.
 - [ ] **AC-9** Given a 20 KB reply mixing every rule, when formatted, then it finishes in under 100 ms on CI hardware (ADR 0006).
-- [ ] **AC-10** Given a mostly Latin-script reply that the formatter transformed (not returned unchanged under AC-8 or AC-13), then in every transformed region the output contains no `|---` and no emoji (unless `emoji_policy: keep`); and on the `plain` profile also no paired `**` and no line starting with `#`. Transformed regions exclude protected spans and tables passed through under AC-2 or `table_style: unchanged`. Non-Latin replies are exempt from the emoji clause, because Script detection keeps their status emoji.
+- [ ] **AC-10** Given a mostly Latin-script reply that the formatter transformed (not returned unchanged under AC-8 or AC-13), then in every transformed region the output contains no `|---`, no status emoji under `emoji_policy: words` and no emoji at all under `emoji_policy: remove`; and on the `plain` profile also no paired `**` and no line starting with `#`. Emoji without a word are kept under `words` (ADR 0008). Transformed regions exclude protected spans and tables passed through under AC-2 or `table_style: unchanged`. Non-Latin replies are exempt from the emoji clause, because Script detection keeps their status emoji.
 - [ ] **AC-11** Given a reply that is mostly non-Latin script, when formatted, then no English words are inserted.
 - [ ] **AC-12** Given the same reply at `brief`, `normal` and `full`, then all three contain every cell, URL and code line.
 - [ ] **AC-13** Given an internal exception in any rule, when formatted, then the input is returned unchanged.
