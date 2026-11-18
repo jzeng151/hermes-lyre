@@ -134,6 +134,8 @@ Each surface gets one of two profiles:
 
 Unknown platforms get `plain`. Stripping a marker a client would have rendered loses only visual emphasis; leaving one a client shows raw is spoken aloud.
 
+Telegram shows a code block's language itself, so the hook passes `code_language="client"` there and Lyre's code label leaves the language out (`Code, 12 lines:`) for the three-backtick fences Telegram shows as code. Every other platform gets `spoken` until a client is shown to read its own label ([ADR 0010](docs/adr/0010-leave-the-code-language-to-clients-that-show-it%20%28%238%2C%20%2343%29.md)).
+
 ### Formatter
 
 ```python
@@ -144,6 +146,7 @@ def format_for_speech(
     verbosity: Literal["brief", "normal", "full"] = "normal",
     emoji_policy: Literal["words", "remove", "keep"] = "words",
     table_style: Literal["sentences", "unchanged"] = "sentences",
+    code_language: Literal["spoken", "client"] = "spoken",
 ) -> str
 ```
 
@@ -184,7 +187,7 @@ lyre/
 
 Tests run from the plugin folder: `cd lyre && uv run --no-project --with pytest --with pyyaml pytest`. CI runs them on Linux, macOS and Windows, and runs `hermes plugins validate` and `hermes plugins doctor lyre --ci` against Hermes v0.23.0 and main (main is non-blocking).
 
-The scaffold's stub is `format_for_speech(text, *, platform, settings)`. This design replaces it with explicit keyword arguments (`profile`, `verbosity`, `emoji_policy`, `table_style`) so the formatter knows nothing about platforms or config; `hook.py` maps platform and settings to those arguments.
+The scaffold's stub is `format_for_speech(text, *, platform, settings)`. This design replaces it with explicit keyword arguments (`profile`, `verbosity`, `emoji_policy`, `table_style`, `code_language`) so the formatter knows nothing about platforms or config; `hook.py` maps platform and settings to those arguments.
 
 ## Constraints
 

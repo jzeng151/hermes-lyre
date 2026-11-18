@@ -1,9 +1,12 @@
 """R7: code blocks are announced before and after (both profiles).
 
 ``Python code, 12 lines:`` before a block and ``End of code.`` after it; the code itself is a
-protected span and never changes. Fences are kept on every profile (spec Q1, settled by the
-baseline test in #2). A block that already has Lyre's labels around it gets none added, so a
-second pass changes nothing. Unclosed fences and mostly non-Latin replies get no labels.
+protected span and never changes. With ``code_language="client"`` the label leaves the language
+out (``Code, 12 lines:``) for a fence the client shows as a labelled code block: opened and
+closed by exactly three backticks, outside a quote (ADR 0010). Fences are kept on every profile
+(spec Q1, settled by the baseline test in #2). A block that already has Lyre's labels around it
+gets none added, so a second pass changes nothing. Unclosed fences and mostly non-Latin replies
+get no labels.
 """
 
 from __future__ import annotations
@@ -26,10 +29,14 @@ LANGUAGES = {
 LABEL_RE = re.compile(r"^(?:[A-Z][\w#+]*(?: [\w#+]+)* code|Code)(?:, \d+ lines?)?:$")
 END = "End of code."
 _FENCE_RE = re.compile(r"^[ \t]*(`{3,}|~{3,})(.*)$")
+# The only fences Telegram's adapter sends as a code block with its language label; any other
+# fence (tildes, four or more backticks, a longer closing fence) arrives as text (ADR 0010).
+_CLIENT_OPEN_RE = re.compile(r"[ \t]*```[^`]*")
+_CLIENT_CLOSE_RE = re.compile(r"[ \t]*```[ \t]*")
 
 
-def _describe(original: str, token_kind: str) -> tuple[str, int] | None:
-    """(language name or "", content line count), or None for an unclosed fence."""
+def _describe(original: str, token_kind: str, opts: Options) -> tuple[str, int] | None:
+    """(language name to speak or "", content line count), or None for an unclosed fence."""
     lines = original.split("\n")
     if token_kind != "f":
         return "", len(lines)
@@ -38,8 +45,15 @@ def _describe(original: str, token_kind: str) -> tuple[str, int] | None:
     body = lines[-1].strip()
     if len(lines) < 2 or not (len(body) >= len(fence) and body == fence[0] * len(body)):
         return None
+    if opts.code_language == "client" and _client_shows(lines):
+        return "", len(lines) - 2
     info = (opening.group(2).strip().split() or [""])[0].lower() if opening else ""
     return LANGUAGES.get(info, ""), len(lines) - 2
+
+
+def _client_shows(lines: list[str]) -> bool:
+    """Whether the client shows this closed fence's language itself."""
+    return bool(_CLIENT_OPEN_RE.fullmatch(lines[0]) and _CLIENT_CLOSE_RE.fullmatch(lines[-1]))
 
 
 def _label(language: str, count: int, opts: Options) -> str:
@@ -60,7 +74,7 @@ def labelled(line: str, opts: Options) -> list[str] | None:
     original = opts.span(token) if opts.span and opts.latin else None
     if original is None:
         return None
-    described = _describe(original, token[1])
+    described = _describe(original, token[1], opts)
     if described is None:
         return None
     label = _label(*described, opts)

@@ -13,5 +13,6 @@ Decisions made while building Lyre, one file per decision, named with the issue 
 | [0007](0007-code-fences-backticks-and-trees%20%28%232%2C%20%238%29.md) | Keep code fences and backticks, leave tree lines unchanged | #2, #8 | Accepted |
 | [0008](0008-keep-emoji-without-a-spoken-word%20%28%235%29.md) | Keep emoji without a spoken word under the words policy | #5 | Accepted |
 | [0009](0009-titled-links-and-inline-math%20%28%238%29.md) | Titled links and inline math are left as written | #8 | Accepted |
+| [0010](0010-leave-the-code-language-to-clients-that-show-it%20%28%238%2C%20%2343%29.md) | Leave the code language out of Lyre's label on clients that show it | #8, #43 | Accepted |
 
 Format: Context, Decision, Consequences (after Michael Nygard).

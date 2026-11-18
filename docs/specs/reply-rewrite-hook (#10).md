@@ -65,7 +65,7 @@ Platform matching is case-insensitive. Unknown values are treated as messaging b
 1. `platform` is `subagent` or empty: return `None`.
 2. `enabled` setting is false: return `None`.
 3. The group's setting is false: return `None`.
-4. Call `format_for_speech(response_text, profile=..., verbosity=..., emoji_policy=..., table_style=...)` with settings from [settings.md](settings%20%28%2311%29.md).
+4. Call `format_for_speech(response_text, profile=..., verbosity=..., emoji_policy=..., table_style=..., code_language=...)` with settings from [settings.md](settings%20%28%2311%29.md). `code_language` is `client` for `telegram`, which shows a code block's language itself, and `spoken` for every other platform ([ADR 0010](../adr/0010-leave-the-code-language-to-clients-that-show-it%20%28%238%2C%20%2343%29.md)).
 5. Result equals `response_text`, or is empty or whitespace-only: return `None`. Otherwise return the result. (The formatter already returns its input instead of an empty result; this check keeps the hook's "never an empty string" contract even if it does not.)
 
 Settings are read on every call through `ctx.get_config`, so changes made by `/a11y` or the Desktop form apply to the next reply.

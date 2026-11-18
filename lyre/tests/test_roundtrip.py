@@ -147,3 +147,20 @@ def test_ac14_status_words_survive_core_plain_text_formatter():
 def test_core_plain_text_formatter_keeps_markers_inside_code():
     ours = format_for_speech("```py\nx = '**literal**'\n```", profile="plain")
     assert "x = '**literal**'" in helpers.strip_markdown(ours)
+
+
+FENCE_KINDS = [
+    "Run:\n\n```python\nx = 1\n```\n\nAfter", "Run:\n\n  ```python title=x.py\n  x = 1\n  ```\n\nAfter",
+    "- Run:\n\n  ```python\n  x = 1\n  ```\n- next", "- ```python\n  x = 1\n  ```\n- next",
+    "Run:\n\n~~~python\nx = 1\n~~~\n\nAfter", "Run:\n\n````python\nx = 1\n````\n\nAfter",
+    "Run:\n\n```python\nx = 1\n````\n\nAfter", "Note:\n\n> ```python\n> x = 1\n> ```\n\nAfter",
+]
+
+
+@pytest.mark.parametrize("text", FENCE_KINDS)
+def test_telegram_listener_hears_the_language_once(text):
+    """Either Telegram labels the block (Lyre leaves the language out) or Lyre names it (ADR 0010)."""
+    cls, adapter = _adapter("telegram")
+    ours = format_for_speech(text, profile="markdown", code_language="client")
+    telegram_labels = re.search(r"(?m)^[ \t]*```python", cls.format_message(adapter, ours)) is not None
+    assert telegram_labels != ("Python code" in ours), ours
