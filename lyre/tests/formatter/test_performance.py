@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import time
 
+import pytest
+
 from lyre.formatter import format_for_speech
 
 from . import fuzzgen
@@ -40,16 +42,47 @@ def test_ac9_twenty_kb_mixed_reply_within_budget():
     assert _best_of(_fixture(20_000)) < BUDGET_S
 
 
+def assert_scales_linearly(reply, n: int = 1_000, ceiling_s: float = 2.0) -> None:
+    """Fail when 8x the input costs far more than 8x the time.
+
+    Linear work grows about 8x and quadratic work about 64x, so a 24x limit separates them with
+    room for noisy shared runners; a single timed run can stall several-fold on macOS. Best of
+    three runs on each size, plus an absolute ceiling on the larger one.
+    """
+    small = _best_of(reply(n))
+    large = _best_of(reply(8 * n))
+    assert large < ceiling_s
+    assert large < 24 * max(small, 0.005), (small, large)
+
+
 def test_link_targets_math_and_code_runs_scale_linearly():
     # Link destinations, display math and two backtick runs on one line used to rebuild the
     # exclusion ranges once per math span, so a 104 KB line took several seconds.
-    def reply(n: int) -> str:
-        return "[a](b) " * n + "$$x$$ " * n + "`code` `more`"
+    assert_scales_linearly(lambda n: "[a](b) " * n + "$$x$$ " * n + "`code` `more`")
 
-    small = _best_of(reply(2_000), runs=1)
-    large = _best_of(reply(8_000), runs=1)
-    assert large < 2.0
-    assert large < 8 * max(small, 0.01)  # 4x the input: linear is ~4x, quadratic ~16x
+
+# Adversarial inline-math lines (ADR 0009): every candidate opener must stop at the next
+# opener of its kind, or a line of them scans to its end once per opener.
+MATH_LINES = {
+    "escaped dollars": lambda n: "x \\$5 " * n,
+    "dollar openers before spaces": lambda n: "$a b " * n,
+    "unclosed paren openers": lambda n: "\\( a " * n,
+    "escaped paren openers, one close": lambda n: "\\\\( a " * n + "\\)",
+    "unclosed bracket openers": lambda n: "\\[ a " * n,
+    "escaped bracket openers, one close": lambda n: "\\\\[ a " * n + "\\]",
+    "math rejected into destinations": lambda n: "[x](u/$a)$ " * n,
+    "paren math rejected into URLs": lambda n: "\\(https://x.test/a\\) " * n,
+}
+
+
+@pytest.mark.parametrize("name", sorted(MATH_LINES))
+def test_inline_math_candidates_scale_linearly(name):
+    assert_scales_linearly(MATH_LINES[name], ceiling_s=1.0)
+
+
+def test_escaped_dollar_prose_within_budget():
+    text = "Costs \\$5 each, " * 1_100  # about 17.6 KB on one line
+    assert _best_of(text) < BUDGET_S
 
 
 def test_ac8_one_megabyte_is_skipped_not_processed():
@@ -57,4 +90,6 @@ def test_ac8_one_megabyte_is_skipped_not_processed():
     assert len(text.encode()) > 200_000
     start = time.perf_counter()
     assert format_for_speech(text, profile="plain") is text
-    assert time.perf_counter() - start < 0.005
+    # Processing would take seconds; the skip only measures the size. 5 ms was within noise of
+    # the UTF-8 size check on macOS runners (5.2 and 5.5 ms observed).
+    assert time.perf_counter() - start < 0.05

@@ -45,7 +45,8 @@ REMOVED = [
     ("x \\> y and y \\< z", "x > y and y < z"),
     ("salt \\& pepper", "salt & pepper"),
     ("wow \\! yes", "wow ! yes"),
-    ("a \\( b \\) c", "a ( b ) c"),
+    ("a \\( b and c", "a ( b and c"),  # a \( ... \) pair on one line is inline math (ADR 0009)
+    ("a b \\) c", "a b ) c"),
     ("a \\. b \\, c \\; d \\: e \\? f", "a . b , c ; d : e ? f"),
     ("a \\/ b \\% c \\@ d \\^ e", "a / b % c @ d ^ e"),
     ("a \\{ b \\} c", "a { b } c"),
@@ -299,10 +300,19 @@ def test_ac24_only_the_spaced_escape_loses_its_backslash(profile):
 
 @pytest.mark.parametrize("profile", PROFILES)
 def test_escape_exposed_by_emoji_removal_is_judged_on_the_first_pass(profile):
-    # Fuzz seed 2640: removing the emoji turns a lone backslash into an escape.
-    out = fmt("z\U0001f4a1\\\u2728)\u2728\u0631", profile)
+    # Fuzz seed 2640: removing the emoji turns a lone backslash into an escape. Only the remove
+    # policy removes these emoji; words keeps them (ADR 0008).
+    out = fmt("z\U0001f4a1\\\u2728)\u2728\u0631", profile, emoji_policy="remove")
     assert out == "z ) \u0631"
-    assert_stable(out, profile)
-    out = fmt("a \\\u2728) (b)", profile)
+    assert fmt(out, profile, emoji_policy="remove") == out
+    out = fmt("a \\\u2728) (b)", profile, emoji_policy="remove")
     assert "\\)" in out
-    assert_stable(out, profile)
+    assert fmt(out, profile, emoji_policy="remove") == out
+    # Under words the emoji stay, so the backslash is no escape and nothing changes.
+    kept = "z\U0001f4a1\\\u2728)\u2728\u0631"
+    assert fmt(kept, profile) == kept
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+def test_paired_paren_escapes_are_inline_math_and_stay(profile):
+    assert fmt("a \\( b \\) c", profile) == "a \\( b \\) c"

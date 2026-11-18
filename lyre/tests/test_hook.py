@@ -152,7 +152,32 @@ def test_settings_passed_to_formatter(monkeypatch):
     _, cb = callback(enabled=True, verbosity="brief", emoji_policy="keep", table_style="unchanged")
     cb(response_text=REPLY, platform="whatsapp")
     assert callable(seen.pop("on_error"))
-    assert seen == {"profile": "plain", "verbosity": "brief", "emoji_policy": "keep", "table_style": "unchanged"}
+    assert seen == {"profile": "plain", "verbosity": "brief", "emoji_policy": "keep", "table_style": "unchanged",
+                    "code_language": "spoken"}
+
+
+@pytest.mark.parametrize("platform,code_language", [
+    ("telegram", "client"), ("Telegram", "client"), ("whatsapp", "spoken"), ("cli", "spoken"),
+    ("discord", "spoken"), ("slack", "spoken"), ("matrix", "spoken"), ("newchat", "spoken"),
+])
+def test_code_language_left_to_clients_that_show_it(monkeypatch, platform, code_language):
+    seen = {}
+
+    def spy(text, **kwargs):
+        seen.update(kwargs)
+        return text + " changed"
+
+    monkeypatch.setattr(hook, "format_for_speech", spy)
+    _, cb = callback(enabled=True)
+    cb(response_text=REPLY, platform=platform)
+    assert seen["code_language"] == code_language
+
+
+def test_telegram_code_label_has_no_language():
+    _, cb = callback(enabled=True, cli=True)
+    code = "```python\nprint(1)\n```"
+    assert cb(response_text=code, platform="telegram").startswith("Code, 1 line:\n```python\n")
+    assert cb(response_text=code, platform="cli").startswith("Python code, 1 line:\n")
 
 
 def test_slow_format_logs_info_without_text(monkeypatch, caplog):

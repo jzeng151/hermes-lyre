@@ -15,14 +15,15 @@ from typing import cast
 
 from . import rules
 from .blocks import ATX_RE, QUOTE_RE, same_block_shape, segment, starts_block, syntax_categories
-from .model import (EMOJI_POLICIES, PROFILES, TABLE_STYLES, VERBOSITIES, Block, EmojiPolicy, Options, Profile,
-                    TableStyle, Verbosity)
+from .model import (CODE_LANGUAGES, EMOJI_POLICIES, PROFILES, TABLE_STYLES, VERBOSITIES, Block, CodeLanguage,
+                    EmojiPolicy, Options, Profile, TableStyle, Verbosity)
 from .spans import (CLOSE, OPEN, TOKEN_RE, Stash, indent_width, is_block_token_line, protect_blocks, protect_cells,
                     protect_code_spans, protect_inline)
 
 _ASCII_LETTER_PROBE = re.compile("[A-Za-z]")
 # Quotes in lists still need opaque-container protection even without inline markers.
-_INLINE_PROTECTION_PROBE = re.compile(r"`|<|\\|\[|\]\(|\$\$|://|^ {0,3}>", re.MULTILINE)
+# ``\$\S[^$\n]*\$`` finds any inline math pair (``$$`` included) but not a lone price.
+_INLINE_PROTECTION_PROBE = re.compile(r"`|<|\\|\[|\]\(|\$\S[^$\n]*\$|://|^ {0,3}>", re.MULTILINE)
 
 MAX_BYTES = 200_000
 MAX_QUOTE_DEPTH = 10
@@ -40,6 +41,7 @@ def format_for_speech(
     verbosity: Verbosity = "normal",
     emoji_policy: EmojiPolicy = "words",
     table_style: TableStyle = "sentences",
+    code_language: CodeLanguage = "spoken",
     on_error: Callable[[Exception], None] | None = None,
 ) -> str:
     """Return *text* rewritten for a screen reader.
@@ -49,9 +51,11 @@ def format_for_speech(
     empty. Raises ValueError only for an unknown option value, which is a caller bug, never a
     property of the reply. *on_error*, when given, receives the exception from a failed pipeline
     run (called inside the ``except`` block, so a logger can record the traceback); the formatter
-    itself does no I/O and still returns *text*.
+    itself does no I/O and still returns *text*. *code_language* ``client`` leaves the language
+    out of code labels (``Code, 12 lines:``) where the client shows it: fences of exactly three
+    backticks outside a quote (ADR 0010).
     """
-    opts = _options(profile, verbosity, emoji_policy, table_style)
+    opts = _options(profile, verbosity, emoji_policy, table_style, code_language)
     if not isinstance(text, str) or not text.strip() or OPEN in text or CLOSE in text:
         return text
     if len(text.encode("utf-8", "surrogatepass")) > MAX_BYTES:
@@ -72,14 +76,16 @@ def format_for_speech(
     return out.replace("\n", "\r\n") if crlf else out
 
 
-def _options(profile: str, verbosity: str, emoji_policy: str, table_style: str) -> Options:
+def _options(profile: str, verbosity: str, emoji_policy: str, table_style: str, code_language: str) -> Options:
     for name, value, allowed in (("profile", profile, PROFILES), ("verbosity", verbosity, VERBOSITIES),
                                  ("emoji_policy", emoji_policy, EMOJI_POLICIES),
-                                 ("table_style", table_style, TABLE_STYLES)):
+                                 ("table_style", table_style, TABLE_STYLES),
+                                 ("code_language", code_language, CODE_LANGUAGES)):
         if value not in allowed:
             raise ValueError(f"{name} must be one of {', '.join(allowed)}; got {value!r}")
     return Options(profile=cast(Profile, profile), verbosity=cast(Verbosity, verbosity),
-                   emoji_policy=cast(EmojiPolicy, emoji_policy), table_style=cast(TableStyle, table_style))
+                   emoji_policy=cast(EmojiPolicy, emoji_policy), table_style=cast(TableStyle, table_style),
+                   code_language=cast(CodeLanguage, code_language))
 
 
 def _letter_counts(lines: list[str]) -> tuple[int, int]:
@@ -367,7 +373,8 @@ def _render_quote(block: Block, opts: Options, depth: int) -> list[str] | None:
         prefix, body = _strip_quote_marker(line)
         prefixes.append(prefix)
         inner.append(body)
-    inner_out = _process("\n".join(inner), opts, depth + 1).split("\n")
+    # Clients send code inside a quote as text, so its language label stays spoken (ADR 0010).
+    inner_out = _process("\n".join(inner), replace(opts, code_language="spoken"), depth + 1).split("\n")
     block.meta.update(inner=inner, inner_out=inner_out, prefixes=prefixes)
     rule = rules.block_rule("blockquote")
     out = rule(block, opts, _inline_fn(opts)) if rule else None

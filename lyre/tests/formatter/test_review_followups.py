@@ -62,7 +62,7 @@ def test_strong_emphasis_holds_a_literal_single_marker(text, expected):
 
 # Emoji (#35).
 @pytest.mark.parametrize("profile", ["plain", "markdown"])
-@pytest.mark.parametrize("policy,expected", [("words", "(done) ready"), ("remove", "ready")])
+@pytest.mark.parametrize("policy,expected", [("words", "(done) \U0001F1E6 ready"), ("remove", "ready")])
 def test_lone_regional_indicator_is_an_emoji(profile, policy, expected):
     assert twice("\u2705 \U0001F1E6 ready", profile=profile, emoji_policy=policy) == expected
 
