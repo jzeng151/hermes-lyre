@@ -2,7 +2,8 @@
 
 ``Table, 2 rows, 3 columns: Name, Price, Stock.`` then one ``Row N:`` sentence per row that names
 each column, then ``End of table.`` Every cell is kept; empty cells say ``blank``. Malformed or
-oversized tables, and tables in mostly non-Latin replies, pass through byte-identical.
+oversized tables, and tables in mostly non-Latin replies, pass through byte-identical. R10 (prose
+escapes) runs on each spoken line, not on single cells, because its decision depends on the line.
 """
 
 from __future__ import annotations
@@ -13,6 +14,7 @@ from dataclasses import replace
 from ..model import Block, Options
 from ..spans import TOKEN_RE, Stash, protect_code_spans, protect_inline
 from . import InlineFn, inline_rules, register_block_rule
+from .escapes import prose_escapes
 
 MAX_ROWS = 50
 MAX_COLUMNS = 10
@@ -85,6 +87,25 @@ def _unsafe_cell(cell: str, block: Block) -> bool:
     return "<" in exposed or "](" in exposed
 
 
+def _cell_inline(active: list, opts: Options) -> InlineFn:
+    """Every inline rule except R10, whose escape decisions need the whole spoken line.
+
+    A row sentence joins the column names and every cell of the row on one line; whether an
+    escape may lose its backslash depends on that line (R10 counts ``*``, ``_`` and ``~`` per
+    line), which is also the line the next pass sees.
+    """
+    cell_rules = [rule for rule in active if rule is not prose_escapes]
+
+    def inline(text: str) -> str:
+        for rule in cell_rules:
+            text = rule(text, opts)
+            if "\n" in text:
+                raise ValueError("an inline rule produced a newline")
+        return text
+
+    return inline
+
+
 def _cell_text(cell: str, block: Block, inline: InlineFn) -> str:
     span = block.meta.get("span")
 
@@ -107,6 +128,8 @@ def tables(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
                  or any(_unsafe_cell(cell, block) for row in [header, *rows] for cell in row))
     if not opts.latin or too_big or malformed:
         return list(block.lines)  # pass through byte-identical
+    active = inline_rules()  # one snapshot for the cells, the spoken lines and the validation
+    inline = _cell_inline(active, opts)
     names = [_cell_text(cell, block, inline) if cell else f"Column {i + 1}" for i, cell in enumerate(header)]
     columns = ", ".join(names)
     out = []
@@ -125,6 +148,8 @@ def tables(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
         out.append(_sentence(f"Row {number}: " + ", ".join(parts)))
     if opts.verbosity != "brief":
         out.append("End of table.")
+    if any(rule is prose_escapes for rule in active):
+        out = [prose_escapes(line, opts) for line in out]
     # Rebuild protection from restored prose, not the original cell-local tokens. Math in
     # separate destinations may now pair before destination protection, while newly emitted
     # bare URLs must be protected before checking inline rules again.
@@ -133,7 +158,6 @@ def tables(block: Block, opts: Options, inline: InlineFn) -> list[str] | None:
     protected = protect_code_spans(restored, stash, lambda line: False)
     next_opts = replace(opts, span=stash.value_of, protect_url=lambda url: stash.put("u", url))
     checked = []
-    active = inline_rules()
     for line in protected:
         text = protect_inline(line, stash)
         for rule in active:

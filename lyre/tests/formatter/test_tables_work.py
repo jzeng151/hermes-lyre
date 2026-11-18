@@ -33,7 +33,8 @@ def test_plain_table_still_validates_every_restored_output_line(monkeypatch):
     text = "| Name | Price |\n|---|---|\n| Alpha | $10 |"
     expected = "Table, 1 row, 2 columns: Name, Price.\nRow 1: Name Alpha, Price $10.\nEnd of table."
     assert format_for_speech(text, profile="plain") == expected
-    assert seen == expected.splitlines()
+    # Cells go through the same rule snapshot first; the validation then sees every output line.
+    assert seen[-3:] == expected.splitlines()
 
 
 def test_restored_validation_snapshots_rules_once_for_all_rows(monkeypatch):

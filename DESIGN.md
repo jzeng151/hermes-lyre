@@ -176,7 +176,7 @@ lyre/
     model.py           Options and Block types
     spans.py           protected spans and placeholder tokens
     blocks.py          block pass and block-syntax categories
-    rules/             emphasis, headings, quotes, decoration, emoji, lists, tables, code, links
+    rules/             emphasis, headings, quotes, decoration, emoji, lists, tables, code, links, escapes
   tests/
     conftest.py, test_formatter.py   (from the scaffold)
     formatter/         unit, property, fuzz, performance
@@ -204,6 +204,7 @@ The rewrite is stored, and later turns, memory and session search see it. So:
 
 - Every table cell, URL, code block and ambiguous symbol survives.
 - URLs and code are byte-identical to the input.
+- A backslash escape in prose loses its backslash only where the bare character cannot become markup (spec R10, ADR 0011); the character itself always stays.
 - Tables too large or malformed to speak pass through unchanged.
 
 ### Security

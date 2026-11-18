@@ -17,7 +17,7 @@ from typing import cast
 
 import pytest
 
-from lyre.formatter import format_for_speech
+from lyre.formatter import format_for_speech, rules
 from lyre.formatter.model import Profile
 from lyre.hook import surface
 
@@ -45,6 +45,7 @@ CURATED = [
     "# Weekly report\n\n🎉 All **12** jobs passed.\n\n| Job | Result |\n|---|---|\n| build | ✅ |\n| lint | ❌ |",
     "Steps:\n\n- Open `config.yaml`\n- Set `retries: 3`\n- Run:\n\n  ```bash\n  make deploy\n  ```",
     "~~Old plan~~ New plan: use _staging_ first, then https://example.test/deploy?env=prod&id=7.",
+    "The total is 2 \\* 3 = 6, and \\_name\\_ stays. Use `retry\\*limit` in code.",
 ]
 REPLIES = CURATED
 
@@ -147,6 +148,95 @@ def test_ac14_status_words_survive_core_plain_text_formatter():
 def test_core_plain_text_formatter_keeps_markers_inside_code():
     ours = format_for_speech("```py\nx = '**literal**'\n```", profile="plain")
     assert "x = '**literal**'" in helpers.strip_markdown(ours)
+
+
+# R10 (#51). Each line has at most one of each pairable character (*, _, ~), so every escape goes.
+REMOVABLE = "The total is 2 \\* 3 = 6, then a \\_ b and x \\# 1.\nNext 4 \\* 5 = 20 and c \\~ d."
+# A second asterisk on the line (escaped, bare, or in a URL) keeps the escape: Telegram's adapter in
+# Hermes v0.23.0 pairs any two asterisks on a line as italics, escaped or not.
+PAIRABLE = [
+    "The total is 2 \\* 3 = 6, then a \\_ b, x \\# 1 and \\_name\\_ with retry\\*limit.",
+    "2 \\* 3 \\* 4, and a \\_ b \\_ c, and a \\~ b \\~ c.",
+    "2 \\* 3 = 6 at https://t.test/a*b now.",
+    "2 \\* 3 = 6 and 4 * 5 = 20.",
+]
+
+
+@pytest.mark.parametrize("platform", list(ADAPTERS))
+def test_removed_escape_shows_the_bare_character(platform):
+    """R10: a prose escape between two words reaches the app as the bare character (#51)."""
+    cls, adapter = _adapter(platform)
+    ours = _lyre(REMOVABLE, platform)
+    shown = _shown(platform, cls.format_message(adapter, ours))
+    for removed in ("2 * 3 = 6", "a _ b", "x # 1", "4 * 5 = 20", "c ~ d"):
+        assert removed in ours and removed in shown, f"{platform}: {shown!r}"
+    # No emphasis appears: the app keeps every asterisk, underscore and tilde Lyre left.
+    for c in "*_~":
+        assert shown.count(c) == ours.count(c), f"{platform}: {shown!r}"
+
+
+@pytest.mark.parametrize("platform", list(ADAPTERS))
+@pytest.mark.parametrize("index", range(len(PAIRABLE)))
+def test_lyre_adds_no_pairing_the_app_would_not_do_anyway(platform, index):
+    """Whatever the app pairs in Lyre's output, it also pairs in the reply as written."""
+    cls, adapter = _adapter(platform)
+    text = PAIRABLE[index]
+    ours = _lyre(text, platform)
+    assert "\\#" not in ours or "\\#" in text
+
+    def shown(reply: str) -> str:
+        # Only the escapes R10 may remove here (``\\#``) differ between the two replies.
+        return _shown(platform, cls.format_message(adapter, reply)).replace("\\#", "#")
+
+    assert shown(ours) == shown(text), f"{platform}: {shown(ours)!r}"
+    for kept in ("\\*", "\\_", "\\~"):
+        assert ours.count(kept) == text.count(kept)
+
+
+# Spoken tables join the column names and every cell of a row on one line (R6).
+TABLE_ESCAPES = [
+    "| A | B |\n|---|---|\n| 2 \\* 3 | 4 \\* 5 |",
+    "| a \\* b | c \\* d |\n|---|---|\n| 1 | 2 |",
+    "| A | B |\n|---|---|\n| 2 \\* 3 | x*y |",
+    "| A | B |\n|---|---|\n| 2 \\* 3 | *y* |",
+    "| A | B |\n|---|---|\n| a \\_ b | c \\_ d |",
+    "| A | B |\n|---|---|\n| a \\~ b | c \\~ d |",
+    "| A | B |\n|---|---|\n| 2 \\* 3 | x \\# 1 |",
+]
+
+
+@pytest.mark.parametrize("platform", list(ADAPTERS))
+@pytest.mark.parametrize("index", range(len(TABLE_ESCAPES)))
+def test_spoken_table_row_gets_no_pairing_from_removed_escapes(platform, index):
+    """R10 judges a spoken row as one line, so the app pairs nothing it would not pair without R10."""
+    cls, adapter = _adapter(platform)
+    text = TABLE_ESCAPES[index]
+    ours = _lyre(text, platform)
+    saved = rules.snapshot()
+    try:
+        rules.unregister("prose-escapes")
+        without = _lyre(text, platform)
+    finally:
+        rules.restore(saved)
+
+    def shown(reply: str) -> str:
+        # Escapes R10 removed differ only by their backslash; a pairing the app adds would turn
+        # the characters into its own markup (Telegram's italic ``_``) and show up here.
+        return re.sub(r"\\([*_~#])", r"\1", _shown(platform, cls.format_message(adapter, reply)))
+
+    assert ours.startswith("Table,")
+    assert shown(ours) == shown(without), f"{platform}: {shown(ours)!r}"
+    # An app that honours escapes (or a later Hermes) pairs only bare characters: wherever R10
+    # removed a backslash, that character is alone on its line.
+    for mine, theirs in zip(ours.split("\n"), without.split("\n"), strict=True):
+        for c in "*_~":
+            if theirs.count("\\" + c) > mine.count("\\" + c):
+                assert mine.count(c) == 1, f"{platform}: {mine!r}"
+
+
+def test_removed_escape_survives_core_plain_text_formatter():
+    ours = format_for_speech("The total is 2 \\* 3 = 6, then a \\_ b.", profile="plain")
+    assert helpers.strip_markdown(ours) == "The total is 2 * 3 = 6, then a _ b."
 
 
 FENCE_KINDS = [

@@ -69,6 +69,7 @@ Here is the same reply after Lyre, as you would hear it:
 - Lists announce how many items they have, and nested items say they are sub-items.
 - Code gets a line before it naming the language and length, and "End of code." after it. The code itself is never changed.
 - Links keep their full address after the word "link", so nothing is lost.
+- A Markdown escape between two words, such as `2 \* 3`, loses its backslash, so your screen reader no longer says "backslash" there. Escapes that could turn into formatting stay as written, such as `retry\*limit`, `\_name\_`, or two asterisks on one line. Backslashes in code are never changed.
 - Replies mostly in a script other than Latin keep all their emoji, status emoji included, and gain no English words.
 
 Code, web addresses, link targets and math are never changed: display math, `$$...$$`, `\(...\)`, `\[...\]` on one line, and `$...$` written tight against its contents (so `$5 and $10` stays ordinary text). A link with a title is left exactly as written, so the title is kept. Box-drawing trees, Braille and anything Lyre cannot read with confidence are left as written.
