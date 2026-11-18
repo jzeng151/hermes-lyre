@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import time
 
+import pytest
+
 from lyre.formatter import format_for_speech
 
 from . import fuzzgen
@@ -57,6 +59,30 @@ def test_link_targets_math_and_code_runs_scale_linearly():
     # Link destinations, display math and two backtick runs on one line used to rebuild the
     # exclusion ranges once per math span, so a 104 KB line took several seconds.
     assert_scales_linearly(lambda n: "[a](b) " * n + "$$x$$ " * n + "`code` `more`")
+
+
+# Adversarial inline-math lines (ADR 0009): every candidate opener must stop at the next
+# opener of its kind, or a line of them scans to its end once per opener.
+MATH_LINES = {
+    "escaped dollars": lambda n: "x \\$5 " * n,
+    "dollar openers before spaces": lambda n: "$a b " * n,
+    "unclosed paren openers": lambda n: "\\( a " * n,
+    "escaped paren openers, one close": lambda n: "\\\\( a " * n + "\\)",
+    "unclosed bracket openers": lambda n: "\\[ a " * n,
+    "escaped bracket openers, one close": lambda n: "\\\\[ a " * n + "\\]",
+    "math rejected into destinations": lambda n: "[x](u/$a)$ " * n,
+    "paren math rejected into URLs": lambda n: "\\(https://x.test/a\\) " * n,
+}
+
+
+@pytest.mark.parametrize("name", sorted(MATH_LINES))
+def test_inline_math_candidates_scale_linearly(name):
+    assert_scales_linearly(MATH_LINES[name], ceiling_s=1.0)
+
+
+def test_escaped_dollar_prose_within_budget():
+    text = "Costs \\$5 each, " * 1_100  # about 17.6 KB on one line
+    assert _best_of(text) < BUDGET_S
 
 
 def test_ac8_one_megabyte_is_skipped_not_processed():
