@@ -12,4 +12,4 @@ End of code.
 2, Log in with `acme login`.
 3, Run `acme init` in your project folder.
 
-That's it
+That's it 🎉

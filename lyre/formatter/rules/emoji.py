@@ -1,9 +1,11 @@
 """R4: emoji (both profiles).
 
 Each emoji sequence (base plus variation selector, skin tone, tag characters and zero-width
-joiner parts; keycaps; flag pairs) is one unit, so no orphan code point is left. A run of
-emoji separated only by spaces becomes the status words it contains, or disappears. Spacing is
-only touched next to a run. Mostly non-Latin replies keep their status emoji instead of words.
+joiner parts; keycaps; flag pairs) is one unit, so no orphan code point is left. Under the
+``words`` policy a status emoji becomes its word and every other emoji is kept as written
+(ADR 0008); under ``remove`` a run of emoji separated only by spaces disappears. Spacing is only
+touched next to a status word or a removed run. Mostly non-Latin replies keep their status emoji
+instead of words.
 """
 
 from __future__ import annotations
@@ -12,7 +14,7 @@ import re
 
 from ..model import Options
 from . import register_inline_rule
-from .emphasis import paired_delimiter_edges
+from .emphasis import mask_keycaps, paired_delimiter_edges
 
 # Emoji are matched by presentation, not by whole Unicode blocks, so symbols that share those
 # blocks (music sharps and flats, stars, check marks, crosses, chess and alchemy signs) are
@@ -77,6 +79,7 @@ STATUS = {
     "\U0001F534": "(red)", "\U0001F7E1": "(yellow)", "\U0001F7E2": "(green)",
     "\u23F3": "(pending)",
 }
+_MODIFIERS_RE = re.compile("[\uFE0E\uFE0F\U0001F3FB-\U0001F3FF]")
 _NO_SPACE_BEFORE = ".,;:!?)]}"
 _NO_SPACE_AFTER = "([{"
 _DELIMITERS = "*_~"
@@ -87,6 +90,7 @@ _AFTER_CLOSER = " \t.,;:!?)]}\"'"  # what may follow a closing delimiter: **Done
 def _delimiter_edges(text: str) -> tuple[set[int], set[int]]:
     """Classify boundaries once in the original line, never in truncated run gaps."""
     openings, closings = paired_delimiter_edges(text)
+    text, _ = mask_keycaps(text)  # a keycap's ``*`` is part of the emoji, not a delimiter
     for match in re.finditer(r"[*_~]+", text):
         start, end = match.span()
         if start == 0 or text[start - 1] in _BEFORE_OPENER:
@@ -97,12 +101,37 @@ def _delimiter_edges(text: str) -> tuple[set[int], set[int]]:
 
 
 def _label(sequence: str, opts: Options) -> str | None:
+    """The spoken form of one sequence: a status word, the sequence itself, or None (removed)."""
     if opts.emoji_policy == "remove":
         return None
-    base = sequence.replace("\uFE0E", "").replace("\uFE0F", "")
-    if base not in STATUS:
-        return None
-    return STATUS[base] if opts.latin else sequence
+    base = _MODIFIERS_RE.sub("", sequence)  # selectors and skin tones: ✅🏻 is still done
+    if base in STATUS and opts.latin:
+        return STATUS[base]
+    return sequence  # Lyre has no word for it: the screen reader names it (ADR 0008)
+
+
+def _run_body(run: str, opts: Options) -> tuple[str, bool, bool]:
+    """Rewrite a run: status words in place, other emoji with their original gaps.
+
+    Returns the body and whether its first and last parts are emoji kept as written. A status
+    word is set off by one space; two kept emoji keep whatever gap they had.
+    """
+    parts: list[str] = []
+    kept: list[bool] = []
+    previous_end = 0
+    for match in SEQUENCE_RE.finditer(run):
+        label = _label(match.group(0), opts)
+        if label is None:
+            continue
+        is_kept = label == match.group(0)
+        if parts:
+            parts.append(run[previous_end:match.start()] if is_kept and kept[-1] else " ")
+        parts.append(label)
+        kept.append(is_kept)
+        previous_end = match.end()
+    if not kept:
+        return "", False, False
+    return "".join(parts), kept[0], kept[-1]
 
 
 def _drop_emptied_wrapper(
@@ -126,18 +155,17 @@ def _replace_run(
     run: str, left: str, right: str, opts: Options, opening: bool, closing: bool, more_runs: bool,
 ) -> tuple[str, str]:
     """Rewrite a run and its adjacent gaps without copying the remaining line."""
-    labels = [label for m in SEQUENCE_RE.finditer(run)
-              if (label := _label(m.group(0), opts))]
-    if "".join(labels) == "".join(run.split()):
-        # Every emoji kept as written (a non-Latin reply): spacing is left alone too, inside the run
-        # and around it. Adding a gap here would
-        # depend on delimiters that the emphasis rule removes later, so a second pass would differ.
+    body, first_kept, last_kept = _run_body(run, opts)
+    if body == run:
+        # Every emoji kept as written (no status word, or a non-Latin reply): spacing is left
+        # alone too, inside the run and around it. Adding a gap here would depend on delimiters
+        # that the emphasis rule removes later, so a second pass would differ.
         return left + run, right
-    if not labels and left.endswith("[") and right.startswith("]"):
+    if not body and left.endswith("[") and right.startswith("]"):
         # The emoji is a whole bracket label (``[✨]: /path``, ``[🎉](url)``): an empty ``[]``
         # would stop being link syntax and expose the destination on the next pass.
         return left + run, right
-    if not labels:
+    if not body:
         before = left, right
         left, right = _drop_emptied_wrapper(left, right, opening, closing)
         if (left, right) != before:
@@ -145,7 +173,6 @@ def _replace_run(
     left_text, right_text = left.rstrip(" \t"), right.lstrip(" \t")
     if not left.strip():
         left_text = left  # indentation before the first word is kept as written
-    body = " ".join(labels)
     # A gap after ``<b`` would turn ``<b✨text>`` into an HTML tag on the next pass.
     tight_left = opening or left_text.endswith(tuple(_NO_SPACE_AFTER)) or bool(_TAG_START_RE.search(left_text))
     tight_right = closing or right_text.startswith(tuple(_NO_SPACE_BEFORE))
@@ -155,6 +182,11 @@ def _replace_run(
     if not body:
         gap_right = False
         gap_left = gap_left and has_right and not tight_right
+    # An emoji kept as written at an edge of the run keeps its original neighbour spacing.
+    if first_kept:
+        left_text, gap_left = left, False
+    if last_kept:
+        right_text, gap_right = right, False
     return left_text + (" " if gap_left else "") + body + (" " if gap_right else ""), right_text
 
 

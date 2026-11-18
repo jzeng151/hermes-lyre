@@ -16,7 +16,7 @@ MATRIX = {
     "heading": ("# Results", {"brief": "Results.", "normal": "Results.", "full": "Heading: Results."}),
     "subheading": ("### Detail", {"brief": "Detail.", "normal": "Detail.", "full": "Subheading: Detail."}),
     "decoration": ("a\n\n---\n\nb", dict.fromkeys(LEVELS, "a\n\nb")),
-    "emoji": ("✅ done 🎉", dict.fromkeys(LEVELS, "(done) done")),
+    "emoji": ("✅ done 🎉", dict.fromkeys(LEVELS, "(done) done 🎉")),
     "list": ("- a\n- b\n  - c", {
         "brief": "1, a\n2, b\n  sub-item 1, c",
         "normal": "2 items.\n1, a\n2, b\n  1 sub-item.\n  sub-item 1, c",

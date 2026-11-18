@@ -11,13 +11,13 @@ Owner: @jzeng151
 | AC-1 9-row table keeps every cell | Unit test | `test_tables.py::test_ac1_nine_rows_keep_every_cell_in_order` | Pass |
 | AC-2 Malformed table byte-identical | Unit tests per pass-through condition | `test_tables.py::test_ac2_malformed_and_oversized_tables_byte_identical` | Pass |
 | AC-3 Long signed URL byte-identical | Unit test, both profiles | `test_links.py::test_ac3_long_signed_url_byte_identical` | Pass |
-| AC-4 Emoji-only reply | Unit test | `test_emoji.py::test_words_policy[plain-✅🎉-(done)]` | Pass |
+| AC-4 Emoji-only reply | Unit test | `test_emoji.py::test_words_policy[plain-✅🎉-(done) 🎉]` | Pass |
 | AC-5 Idempotent | Property and fuzz tests, 150 generated replies and 150 random inputs per profile | `test_properties.py::test_ac5_idempotent`, `test_fuzz.py::test_soup_never_raises_and_is_idempotent` | Pass |
 | AC-6 Code contents byte-identical | Property test (code, math and URLs) | `test_properties.py::test_ac6_code_math_and_urls_byte_identical` | Pass |
 | AC-7 Protected spans unchanged | Unit tests | | Pending |
 | AC-8 Oversize input skipped | Unit and timing test | `test_core.py::test_oversize_input_is_the_same_object_and_fast` | Pass |
 | AC-9 Under 100 ms for 20 KB | Performance test on CI | `test_hook.py::test_ac8_twenty_kb_under_100_ms` | Pass |
-| AC-10 No spoken markup in transformed regions | Property test with the pass-through exemptions | `test_properties.py::test_ac10_no_spoken_markup_outside_protected_spans` | Pass |
+| AC-10 No spoken markup in transformed regions | Property tests with the pass-through exemptions; status emoji only under `words`, every emoji under `remove` | `test_properties.py::test_ac10_no_spoken_markup_outside_protected_spans`, `test_properties.py::test_remove_policy_leaves_no_emoji_outside_protected_spans` | Pass |
 | AC-11 No English inserted in non-Latin replies | Unit tests (Japanese, Arabic, Russian samples) | | Pending |
 | AC-12 Verbosity keeps all information | Parametrized test | `test_verbosity.py::test_ac12_every_level_keeps_all_information`, `test_levels_only_change_framing` | Pass |
 | AC-13 Exception returns input | Unit test with a rule forced to raise | `test_core.py::test_raising_rule_returns_input` | Pass |
