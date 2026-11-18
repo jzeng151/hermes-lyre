@@ -72,6 +72,7 @@ Each rule lists the output at `normal` verbosity, then the differences at `brief
 - Markers are removed only when they pair on the same line. An unpaired `*` or `_` is left as is (for example `2 * 3`, `snake_case`).
 - Underscore markers pair only when the closing marker is followed by whitespace, line end or `, ; : ! ? ) ]`, so `__init__.py` keeps its underscores (ADR 0003).
 - Single asterisks may pair inside a word (`un*believ*able`, CJK text) but never next to a digit, so `2*3*4` keeps its operators.
+- The `*` that starts a keycap emoji (`*` followed by U+FE0F and/or U+20E3, as in `*️⃣`) is part of the emoji and never an emphasis delimiter, on every emoji policy: `Press *️⃣ for *help*` -> `Press *️⃣ for help` on `plain`.
 - `brief`: strikethrough becomes `(removed: gone)` as well; no difference.
 - `full`: no difference.
 - `markdown` profile: strikethrough still becomes `(removed: gone)`, because several clients render it as plain text and the meaning is easy to miss.
@@ -111,7 +112,7 @@ Each rule lists the output at `normal` verbosity, then the differences at `brief
 
 Every other emoji is kept as written, byte for byte: Lyre has no word for it, and the screen reader speaks its own name for it (ADR 0008). Flags, keycaps, stars and weather emoji often carry meaning (`The answer is 🇫🇷`, `Use key 1️⃣`, `Rated ⭐⭐⭐⭐`), so removing them loses information. Decorative emoji, such as `🚀` at the start of a heading, are kept too.
 
-- Whole sequences are one emoji: variation selectors (U+FE0E, U+FE0F), skin tones (U+1F3FB to U+1F3FF), zero-width joiner sequences, keycaps, tag flags. No orphan code point is left behind.
+- Whole sequences are one emoji: variation selectors (U+FE0E, U+FE0F), skin tones (U+1F3FB to U+1F3FF), zero-width joiner sequences, keycaps, tag flags. No orphan code point is left behind. A status emoji with a skin tone still becomes its word (`✅🏻 ok` -> `(done) ok`).
 - An emoji is a character that displays as emoji by default, or a text-default character followed by U+FE0F, or a status symbol from the table. Symbols that share Unicode blocks with emoji but have no emoji presentation (`♯`, `♭`, `★`, `✓`) are never treated as emoji (ADR 0004).
 - Spacing next to emphasis: an emphasis delimiter touching the emoji stays touching the text (`**✅ Done**` -> `**(done) Done**`). This includes paired intraword asterisks: `un*✅believ*able` -> `un*(done) believ*able` on `markdown`, with the markers removed on `plain`. Literal intraword underscores keep their existing behavior.
 - A run of emoji separated only by spaces keeps its order: each status emoji becomes its word, set off by single spaces, and every other emoji keeps its original bytes and the gap it had to a neighbouring kept emoji: `✅ 🎉 ⚠️` -> `(done) 🎉 (warning)`, `✅🎉` -> `(done) 🎉`. A run with no status emoji is left exactly as written, spacing included: `Hello 🎉🎊  world` is unchanged.

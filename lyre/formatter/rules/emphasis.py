@@ -4,7 +4,8 @@ Plain profile: paired ``**``, ``__``, ``*``, ``_`` and ``***`` markers are remov
 ``~~gone~~`` becomes ``(removed: gone)``, except in mostly non-Latin replies, which get no
 inserted English and keep the markers. Markers pair only on one line; escapes are protected
 spans, so an escaped marker never pairs. Single asterisks may pair inside a word but never next
-to a digit (``2*3*4`` stays). Underscore markers also need whitespace, line end or
+to a digit (``2*3*4`` stays). The ``*`` that starts a keycap emoji (``*️⃣``) is part of the emoji and
+never a delimiter. Underscore markers also need whitespace, line end or
 ``,;:!?)`` after the closing marker, so file names like ``__init__.py`` keep their underscores
 (ADR 0003).
 """
@@ -31,12 +32,29 @@ _EMPHASIS = [
 ]
 # Exact two-tilde delimiters may contain isolated tildes, never a longer tilde run.
 _STRIKE = re.compile(r"(?<!~)~~(?=\S)((?:[^~\n]|(?<!~)~(?!~))+?)(?<=\S)~~(?!~)")
+# The ``*`` of a keycap emoji (``*`` then U+FE0F and/or U+20E3) belongs to the emoji.
+_KEYCAP_STAR = re.compile("\\*(?=[\uFE0F\u20E3])")
+
+
+def mask_keycaps(text: str) -> tuple[str, str | None]:
+    """Replace each keycap ``*`` with a private-use character absent from *text*.
+
+    Offsets are unchanged, so edges found in the masked text apply to the original. Returns the
+    masked text and the stand-in, or None when there is nothing to mask.
+    """
+    if "*\uFE0F" not in text and "*\u20E3" not in text:
+        return text, None
+    stand_in = next((chr(code) for code in range(0xE000, 0xF900) if chr(code) not in text), None)
+    if stand_in is None:
+        return text, None
+    return _KEYCAP_STAR.sub(stand_in, text), stand_in
 
 
 def paired_delimiter_edges(text: str) -> tuple[set[int], set[int]]:
     """Collect paired opener/closer content offsets once, before emoji edits shift them."""
     openings: set[int] = set()
     closings: set[int] = set()
+    text, _ = mask_keycaps(text)
     for pattern in [*_EMPHASIS, _STRIKE]:
         for match in pattern.finditer(text):
             if match.group(0).startswith(("*", "~~")):
@@ -46,6 +64,12 @@ def paired_delimiter_edges(text: str) -> tuple[set[int], set[int]]:
 
 
 def emphasis(text: str, opts: Options) -> str:
+    text, stand_in = mask_keycaps(text)
+    text = _emphasis(text, opts)
+    return text if stand_in is None else text.replace(stand_in, "*")
+
+
+def _emphasis(text: str, opts: Options) -> str:
     # Strikethrough first: ``~~__x__~~`` must see ``)`` after the underscores in this same call.
     if opts.latin and "~~" in text:
         # Nested strikethrough (``~~a ~~b~~ c~~``) resolves inside out, like nested emphasis.

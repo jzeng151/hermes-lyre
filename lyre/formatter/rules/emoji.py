@@ -14,7 +14,7 @@ import re
 
 from ..model import Options
 from . import register_inline_rule
-from .emphasis import paired_delimiter_edges
+from .emphasis import mask_keycaps, paired_delimiter_edges
 
 # Emoji are matched by presentation, not by whole Unicode blocks, so symbols that share those
 # blocks (music sharps and flats, stars, check marks, crosses, chess and alchemy signs) are
@@ -79,6 +79,7 @@ STATUS = {
     "\U0001F534": "(red)", "\U0001F7E1": "(yellow)", "\U0001F7E2": "(green)",
     "\u23F3": "(pending)",
 }
+_MODIFIERS_RE = re.compile("[\uFE0E\uFE0F\U0001F3FB-\U0001F3FF]")
 _NO_SPACE_BEFORE = ".,;:!?)]}"
 _NO_SPACE_AFTER = "([{"
 _DELIMITERS = "*_~"
@@ -89,6 +90,7 @@ _AFTER_CLOSER = " \t.,;:!?)]}\"'"  # what may follow a closing delimiter: **Done
 def _delimiter_edges(text: str) -> tuple[set[int], set[int]]:
     """Classify boundaries once in the original line, never in truncated run gaps."""
     openings, closings = paired_delimiter_edges(text)
+    text, _ = mask_keycaps(text)  # a keycap's ``*`` is part of the emoji, not a delimiter
     for match in re.finditer(r"[*_~]+", text):
         start, end = match.span()
         if start == 0 or text[start - 1] in _BEFORE_OPENER:
@@ -102,7 +104,7 @@ def _label(sequence: str, opts: Options) -> str | None:
     """The spoken form of one sequence: a status word, the sequence itself, or None (removed)."""
     if opts.emoji_policy == "remove":
         return None
-    base = sequence.replace("\uFE0E", "").replace("\uFE0F", "")
+    base = _MODIFIERS_RE.sub("", sequence)  # selectors and skin tones: ✅🏻 is still done
     if base in STATUS and opts.latin:
         return STATUS[base]
     return sequence  # Lyre has no word for it: the screen reader names it (ADR 0008)

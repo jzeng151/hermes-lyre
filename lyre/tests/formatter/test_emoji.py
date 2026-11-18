@@ -401,3 +401,62 @@ def test_words_without_status_emoji_matches_keep(text, profile):
     out = format_for_speech(text, profile=profile)
     assert out == format_for_speech(text, profile=profile, emoji_policy="keep")
     assert format_for_speech(out, profile=profile) == out
+
+
+KEYCAPS = ["*\ufe0f\u20e3", "*\u20e3", "#\ufe0f\u20e3", "#\u20e3", "0\ufe0f\u20e3", "7\u20e3"]
+KEYCAP_LINES = [
+    "Press {k} for help*",
+    "Press {k} for *help*",
+    "Dial {k} and {k}*bold*",
+    "{k}\u2705*x*",
+    "**{k}**",
+    "*{k}*",
+    "{k} Press **x** and *y*",
+    "un*{k}believ*able",
+    "**a {k}** b",
+    "~~{k} old~~ new",
+]
+
+
+@pytest.mark.parametrize("keycap", KEYCAPS)
+@pytest.mark.parametrize("line", KEYCAP_LINES)
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("policy", ["words", "keep"])
+def test_keycap_survives_emphasis_whole(keycap, line, profile, policy):
+    # The keycap's leading ``*`` or ``#`` is part of the emoji, never a delimiter or marker.
+    text = line.format(k=keycap)
+    out = format_for_speech(text, profile=profile, emoji_policy=policy)
+    assert out.count(keycap) == text.count(keycap), repr(out)
+    assert out.count("\u20e3") == text.count("\u20e3"), repr(out)
+    assert format_for_speech(out, profile=profile, emoji_policy=policy) == out
+
+
+@pytest.mark.parametrize("text,plain_out,markdown_out", [
+    ("Press *\ufe0f\u20e3 for help*", "Press *\ufe0f\u20e3 for help*", "Press *\ufe0f\u20e3 for help*"),
+    ("Press *\ufe0f\u20e3 for *help*", "Press *\ufe0f\u20e3 for help", "Press *\ufe0f\u20e3 for *help*"),
+    ("Dial *\ufe0f\u20e3 and *\ufe0f\u20e3*bold*", "Dial *\ufe0f\u20e3 and *\ufe0f\u20e3bold",
+     "Dial *\ufe0f\u20e3 and *\ufe0f\u20e3*bold*"),
+    # Same spacing as ``✅*x*`` -> ``(done) *x*``.
+    ("*\ufe0f\u20e3\u2705*x*", "*\ufe0f\u20e3 (done) x", "*\ufe0f\u20e3 (done) *x*"),
+    ("#\ufe0f\u20e3 Press **x**", "#\ufe0f\u20e3 Press x", "#\ufe0f\u20e3 Press **x**"),
+])
+def test_keycap_beside_emphasis_exact(text, plain_out, markdown_out):
+    assert format_for_speech(text, profile="plain") == plain_out
+    assert format_for_speech(text, profile="markdown") == markdown_out
+
+
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("tone", [chr(cp) for cp in range(0x1F3FB, 0x1F400)])
+def test_status_emoji_with_skin_tone_becomes_word(profile, tone):
+    assert format_for_speech(f"\u2705{tone} ok", profile=profile) == "(done) ok"
+    assert format_for_speech(f"\u26a0\ufe0f{tone} hot", profile=profile) == "(warning) hot"
+
+
+@pytest.mark.parametrize("text", ["un*🎉✅believ*able", "*one*🎉✅**two**", "hi✅**🎉**there",
+                                  "*✅🎉*", "**🎉✅** done", "~~✅🎉 old~~ new"])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_mixed_runs_beside_delimiters(text, profile):
+    out = format_for_speech(text, profile=profile)
+    assert "\u2705" not in out and "(done)" in out
+    assert out.count("🎉") == text.count("🎉")
+    assert format_for_speech(out, profile=profile) == out
