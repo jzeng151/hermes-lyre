@@ -173,3 +173,41 @@ def test_label_from_the_other_setting_is_kept(text, first, second):
     # A reply labelled before the setting changed is not labelled again or relabelled.
     once = plain(text, code_language=first)
     assert plain(once, code_language=second) == once
+
+
+# Telegram shows a code block (and its language) only for a fence opened and closed by exactly three
+# backticks, outside a quote; any other fence arrives as text, so its language stays spoken.
+CLIENT_SHOWN = ["```python\nx = 1\n```", "  ```python\n  x = 1\n  ```", "```python title=x.py\nx = 1\n```",
+                "```python\nx = 1\n```  ", "Run:\n\n```python\nx = 1\n```\n\nAfter",
+                "- Run:\n\n  ```python\n  x = 1\n  ```\n- next", "- ```python\n  x = 1\n  ```\n- next"]
+CLIENT_TEXT = ["~~~python\nx = 1\n~~~", "````python\nx = 1\n````", "```python\nx = 1\n````",
+               "> ```python\n> x = 1\n> ```", "Note:\n\n> ```python\n> x = 1\n> ```\n\nAfter",
+               "- Run:\n\n  ~~~python\n  x = 1\n  ~~~\n- next", "Run:\n\n````python\nx = 1\n````\n\nAfter"]
+
+
+@pytest.mark.parametrize("text", CLIENT_SHOWN)
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_client_drops_the_language_for_fences_the_client_shows(text, profile):
+    out = format_for_speech(text, profile=profile, code_language="client")
+    assert "Code, 1 line:" in out
+    assert "Python code" not in out
+    assert "Python code, 1 line:" in format_for_speech(text, profile=profile)
+
+
+@pytest.mark.parametrize("text", CLIENT_TEXT)
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("code_language", ["spoken", "client"])
+def test_language_stays_spoken_for_fences_the_client_shows_as_text(text, profile, code_language):
+    out = format_for_speech(text, profile=profile, code_language=code_language)
+    assert "Python code, 1 line:" in out
+    assert out == format_for_speech(text, profile=profile)
+
+
+@pytest.mark.parametrize("text", CLIENT_SHOWN + CLIENT_TEXT)
+@pytest.mark.parametrize("verbosity", ["brief", "normal", "full"])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("code_language", ["spoken", "client"])
+def test_fence_kinds_idempotent(text, verbosity, profile, code_language):
+    kw = {"profile": profile, "verbosity": verbosity, "code_language": code_language}
+    once = format_for_speech(text, **kw)
+    assert format_for_speech(once, **kw) == once

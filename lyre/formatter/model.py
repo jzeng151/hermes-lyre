@@ -28,7 +28,8 @@ class Options:
     original text of a protected token at the current container level (None outside a pass), so
     rules such as code labels can see what a placeholder stands for without changing it.
     ``code_language`` is ``client`` when the client shows a code block's language itself, so
-    the code label leaves it out (ADR 0010).
+    the code label leaves it out for fences the client labels; quotes reset it to ``spoken``
+    (ADR 0010).
     ``protect_url`` stashes emitted destinations until the current container is restored,
     including any repeated inline validation performed by block rules.
     """

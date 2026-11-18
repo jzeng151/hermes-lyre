@@ -134,7 +134,7 @@ Each surface gets one of two profiles:
 
 Unknown platforms get `plain`. Stripping a marker a client would have rendered loses only visual emphasis; leaving one a client shows raw is spoken aloud.
 
-Telegram shows a code block's language itself, so the hook passes `code_language="client"` there and Lyre's code label leaves the language out (`Code, 12 lines:`). Every other platform gets `spoken` until a client is shown to read its own label ([ADR 0010](docs/adr/0010-leave-the-code-language-to-clients-that-show-it%20%28%238%2C%20%2343%29.md)).
+Telegram shows a code block's language itself, so the hook passes `code_language="client"` there and Lyre's code label leaves the language out (`Code, 12 lines:`) for the three-backtick fences Telegram shows as code. Every other platform gets `spoken` until a client is shown to read its own label ([ADR 0010](docs/adr/0010-leave-the-code-language-to-clients-that-show-it%20%28%238%2C%20%2343%29.md)).
 
 ### Formatter
 

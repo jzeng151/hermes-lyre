@@ -37,9 +37,16 @@ _NEVER = frozenset({"", "subagent"})
 _CLIENT_CODE_LANGUAGE = frozenset({"telegram"})
 
 
+def _platform_name(platform: str) -> str:
+    return (platform or "").strip().lower()
+
+
 def surface(platform: str) -> tuple[str, str] | None:
     """(setting group, profile) for a ``platform`` value, or None where Lyre never runs."""
-    name = (platform or "").strip().lower()
+    return _surface(_platform_name(platform))
+
+
+def _surface(name: str) -> tuple[str, str] | None:
     if name in _NEVER:
         return None
     if name in _SURFACES:
@@ -49,12 +56,13 @@ def surface(platform: str) -> tuple[str, str] | None:
 
 def rewrite(ctx, response_text: str, platform: str, turn_id: str = "") -> str | None:
     """Steps 1 to 5 of the spec's decision order. May raise; the hook catches."""
-    resolved = surface(platform)
+    name = _platform_name(platform)
+    resolved = _surface(name)
     if resolved is None or not isinstance(response_text, str):
         return None
     settings = load_settings(ctx)
     group, profile = resolved
-    code_language = "client" if platform.strip().lower() in _CLIENT_CODE_LANGUAGE else "spoken"
+    code_language = "client" if name in _CLIENT_CODE_LANGUAGE else "spoken"
     if not settings.enabled or not settings.groups.get(group, False):
         return None
 

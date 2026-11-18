@@ -51,7 +51,8 @@ def format_for_speech(
     property of the reply. *on_error*, when given, receives the exception from a failed pipeline
     run (called inside the ``except`` block, so a logger can record the traceback); the formatter
     itself does no I/O and still returns *text*. *code_language* ``client`` leaves the language
-    out of code labels (``Code, 12 lines:``) for clients that show it themselves (ADR 0010).
+    out of code labels (``Code, 12 lines:``) where the client shows it: fences of exactly three
+    backticks outside a quote (ADR 0010).
     """
     opts = _options(profile, verbosity, emoji_policy, table_style, code_language)
     if not isinstance(text, str) or not text.strip() or OPEN in text or CLOSE in text:
@@ -371,7 +372,8 @@ def _render_quote(block: Block, opts: Options, depth: int) -> list[str] | None:
         prefix, body = _strip_quote_marker(line)
         prefixes.append(prefix)
         inner.append(body)
-    inner_out = _process("\n".join(inner), opts, depth + 1).split("\n")
+    # Clients send code inside a quote as text, so its language label stays spoken (ADR 0010).
+    inner_out = _process("\n".join(inner), replace(opts, code_language="spoken"), depth + 1).split("\n")
     block.meta.update(inner=inner, inner_out=inner_out, prefixes=prefixes)
     rule = rules.block_rule("blockquote")
     out = rule(block, opts, _inline_fn(opts)) if rule else None

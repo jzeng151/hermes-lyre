@@ -34,7 +34,7 @@ def format_for_speech(
 ```
 
 - Returns a string. Never raises: any internal exception returns `text` unchanged.
-- `code_language`: `spoken` names the language in R7 code labels; `client` leaves it out, for clients that show a code block's language themselves ([ADR 0010](../../adr/0010-leave-the-code-language-to-clients-that-show-it%20%28%238%2C%20%2343%29.md)).
+- `code_language`: `spoken` names the language in R7 code labels; `client` leaves it out for fences the client shows with its own language label (see R7) ([ADR 0010](../../adr/0010-leave-the-code-language-to-clients-that-show-it%20%28%238%2C%20%2343%29.md)).
 - Returns `text` unchanged when it is empty, over 200,000 bytes in UTF-8, or fails to parse.
 - Returns `text` unchanged when the result would be empty or whitespace-only (for example a reply that is only decorative emoji). The original is a better answer than nothing, and Hermes ignores empty rewrites anyway.
 - Pure: the same input and arguments always give the same output.
@@ -228,7 +228,7 @@ End of code.
 
 - Code contents are byte-identical, including trailing spaces and blank lines.
 - Label comes from the fence info string, capitalized for known languages (Python, JavaScript, TypeScript, Bash, Shell, JSON, YAML, SQL, Rust, Go, Java, C, C++, C#, Ruby, PHP, HTML, CSS, Markdown, Diff). Unknown or missing: `Code, 12 lines:`.
-- `code_language: client`: the label leaves the language out (`Code, 12 lines:`), because the client shows it and a screen reader would read it twice ([ADR 0010](../../adr/0010-leave-the-code-language-to-clients-that-show-it%20%28%238%2C%20%2343%29.md)).
+- `code_language: client`: the label leaves the language out (`Code, 12 lines:`), because the client shows it and a screen reader would read it twice. This applies only to a fence opened by exactly three backticks (after optional spaces or tabs, with an optional info string) and closed by a line of exactly three backticks, outside a quote. Tilde fences, fences of four or more backticks and fences inside a quote reach the client as text, so their label keeps the language ([ADR 0010](../../adr/0010-leave-the-code-language-to-clients-that-show-it%20%28%238%2C%20%2343%29.md)).
 - Line count is the number of content lines. `1 line`, otherwise `N lines`.
 - Fences are kept on every profile (Q1, settled by #2; [ADR 0007](../../adr/0007-code-fences-backticks-and-trees%20%28%232%2C%20%238%29.md)). Screen readers do not speak them on Telegram, and the labels are the only spoken start and end of the code.
 - Unclosed fence: the rest of the reply is treated as code and left unchanged, with no labels added.
