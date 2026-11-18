@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from lyre.formatter import format_for_speech
+from lyre.formatter import format_for_speech, rules
 
 PROFILES = ("plain", "markdown")
 
@@ -15,6 +15,21 @@ def fmt(text: str, profile: str, **kw) -> str:
 
 def assert_stable(out: str, profile: str) -> None:
     assert fmt(out, profile) == out, "a second pass changed the output"
+
+
+def assert_removed_pairables_are_alone(text: str, profile: str, **kw) -> None:
+    """Wherever R10 removed a backslash from *, _ or ~, that character is alone on its line."""
+    ours = fmt(text, profile, **kw)
+    saved = rules.snapshot()
+    try:
+        rules.unregister("prose-escapes")
+        without = fmt(text, profile, **kw)
+    finally:
+        rules.restore(saved)
+    for mine, theirs in zip(ours.split("\n"), without.split("\n"), strict=True):
+        for c in "*_~":
+            if theirs.count("\\" + c) > mine.count("\\" + c):
+                assert mine.count(c) == 1, mine
 
 
 # Each removed escape: the bare character sits between words, with a space on both sides.
@@ -65,11 +80,80 @@ def test_removed_in_heading_and_table():
     assert fmt("# Total 2 \\* 3", "markdown") == "# Total 2 * 3"
     assert fmt("# Total 2 \\* 3", "plain") == "Total 2 * 3."
     table = "| a | b |\n|---|---|\n| 2 \\* 3 | x |"
-    for style in ("sentences", "unchanged"):
-        for profile in PROFILES:
-            out = fmt(table, profile, table_style=style)
-            assert "2 * 3" in out and "\\*" not in out
-            assert fmt(out, profile, table_style=style) == out
+    for profile in PROFILES:
+        # A table left as a table is processed one whole row line at a time.
+        out = fmt(table, profile, table_style="unchanged")
+        assert "2 * 3" in out and "\\*" not in out
+        assert fmt(out, profile, table_style="unchanged") == out
+        # A spoken row is judged as the whole line it becomes: the asterisk is unique there.
+        out = fmt(table, profile)
+        assert "Row 1: a 2 * 3, b x." in out
+        assert_stable(out, profile)
+
+
+# R6 speaks each row as one line that joins the header names and every cell of the row, while
+# the other inline rules see one cell at a time. R10 judges each spoken line as a whole, so a
+# second *, _ or ~ anywhere in the row (or its column names) keeps the escape.
+SPOKEN_TABLES = [
+    ("| A | B |\n|---|---|\n| 2 \\* 3 | 4 \\* 5 |", ["2 \\* 3", "4 \\* 5"]),
+    ("| a \\* b | c \\* d |\n|---|---|\n| 1 | 2 |", ["a \\* b", "c \\* d"]),
+    ("| A | B |\n|---|---|\n| 2 \\* 3 | x*y |", ["2 \\* 3"]),
+    ("| A | B |\n|---|---|\n| a \\_ b | c \\_ d |", ["a \\_ b", "c \\_ d"]),
+    ("| A | B |\n|---|---|\n| a \\~ b | c \\~ d |", ["a \\~ b", "c \\~ d"]),
+    ("| x \\* y | B |\n|---|---|\n| 2 \\* 3 | z |", ["x \\* y 2 \\* 3"]),
+]
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+@pytest.mark.parametrize("verbosity", ["normal", "full"])
+@pytest.mark.parametrize("text,kept", SPOKEN_TABLES)
+def test_pairable_escapes_in_spoken_table_cells_are_kept(text, kept, verbosity, profile):
+    assert_removed_pairables_are_alone(text, profile, verbosity=verbosity)
+    out = fmt(text, profile, verbosity=verbosity)
+    assert out.startswith("Table,")
+    for fragment in kept:
+        assert fragment in out
+    assert fmt(out, profile, verbosity=verbosity) == out
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+def test_spoken_table_lines_are_judged_one_line_at_a_time(profile):
+    text = "| x \\* y | B |\n|---|---|\n| 2 \\* 3 | z |"
+    # Brief rows leave out the column names, so each line holds one asterisk.
+    out = fmt(text, profile, verbosity="brief")
+    assert out == "Table, 1 row: x * y, B.\nRow 1: 2 * 3, z."
+    assert_stable(out, profile)
+    # Normal rows repeat the column name next to the cell; the header line alone is unique.
+    out = fmt(text, profile)
+    assert "columns: x * y, B." in out and "Row 1: x \\* y 2 \\* 3, B z." in out
+    assert_stable(out, profile)
+
+
+def test_emphasis_in_another_cell_counts():
+    text = "| A | B |\n|---|---|\n| 2 \\* 3 | *y* |"
+    # Markdown keeps the emphasis, so the line has three asterisks.
+    out = fmt(text, "markdown")
+    assert "Row 1: A 2 \\* 3, B *y*." in out
+    assert_stable(out, "markdown")
+    # Plain removes it first, leaving the escape's asterisk alone on the line.
+    out = fmt(text, "plain")
+    assert "Row 1: A 2 * 3, B y." in out
+    assert_stable(out, "plain")
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+def test_escape_at_cell_start_is_judged_in_the_row(profile):
+    # On its own the cell starts with the escape; in the spoken row a column name precedes it.
+    out = fmt("| A | B |\n|---|---|\n| \\# 1 | y |", profile)
+    assert "Row 1: A # 1, B y." in out
+    assert_stable(out, profile)
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+def test_other_escapes_in_spoken_table_cells_are_removed(profile):
+    out = fmt("| A | B |\n|---|---|\n| x \\# 1 | 2 \\- 1 |", profile)
+    assert "A x # 1, B 2 - 1" in out
+    assert_stable(out, profile)
 
 
 def test_removal_after_plain_emphasis_is_stable():

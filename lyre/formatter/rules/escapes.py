@@ -16,7 +16,10 @@ each side (``2 \\* 3`` becomes ``2 * 3``):
 on its line, escaped or bare, counting the text of code, URLs and other protected spans. Some
 clients pair any two of them on a line regardless of spacing or escapes (Telegram's adapter in
 Hermes v0.23.0 turns ``2 * 3 and retry\\*limit`` into italics), so a second one anywhere on the
-line keeps every escape of that character. No adapter checked pairs them across lines.
+line keeps every escape of that character. No messaging adapter checked pairs them across lines
+(core's plain-text formatter for SMS does, ignoring backslashes, so it dropped them before too).
+The line counted must be the output line: R6 runs this rule on each spoken table line it builds
+rather than on single cells.
 
 Characters that can pair or start markup anywhere on a line keep their backslash: backtick
 (code spans), ``[`` and ``]`` (links), ``|`` (table cells), ``$`` (math in some apps) and ``\\``

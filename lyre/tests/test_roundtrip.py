@@ -17,7 +17,7 @@ from typing import cast
 
 import pytest
 
-from lyre.formatter import format_for_speech
+from lyre.formatter import format_for_speech, rules
 from lyre.formatter.model import Profile
 from lyre.hook import surface
 
@@ -191,6 +191,47 @@ def test_lyre_adds_no_pairing_the_app_would_not_do_anyway(platform, index):
     assert shown(ours) == shown(text), f"{platform}: {shown(ours)!r}"
     for kept in ("\\*", "\\_", "\\~"):
         assert ours.count(kept) == text.count(kept)
+
+
+# Spoken tables join the column names and every cell of a row on one line (R6).
+TABLE_ESCAPES = [
+    "| A | B |\n|---|---|\n| 2 \\* 3 | 4 \\* 5 |",
+    "| a \\* b | c \\* d |\n|---|---|\n| 1 | 2 |",
+    "| A | B |\n|---|---|\n| 2 \\* 3 | x*y |",
+    "| A | B |\n|---|---|\n| 2 \\* 3 | *y* |",
+    "| A | B |\n|---|---|\n| a \\_ b | c \\_ d |",
+    "| A | B |\n|---|---|\n| a \\~ b | c \\~ d |",
+    "| A | B |\n|---|---|\n| 2 \\* 3 | x \\# 1 |",
+]
+
+
+@pytest.mark.parametrize("platform", list(ADAPTERS))
+@pytest.mark.parametrize("index", range(len(TABLE_ESCAPES)))
+def test_spoken_table_row_gets_no_pairing_from_removed_escapes(platform, index):
+    """R10 judges a spoken row as one line, so the app pairs nothing it would not pair without R10."""
+    cls, adapter = _adapter(platform)
+    text = TABLE_ESCAPES[index]
+    ours = _lyre(text, platform)
+    saved = rules.snapshot()
+    try:
+        rules.unregister("prose-escapes")
+        without = _lyre(text, platform)
+    finally:
+        rules.restore(saved)
+
+    def shown(reply: str) -> str:
+        # Escapes R10 removed differ only by their backslash; a pairing the app adds would turn
+        # the characters into its own markup (Telegram's italic ``_``) and show up here.
+        return re.sub(r"\\([*_~#])", r"\1", _shown(platform, cls.format_message(adapter, reply)))
+
+    assert ours.startswith("Table,")
+    assert shown(ours) == shown(without), f"{platform}: {shown(ours)!r}"
+    # An app that honours escapes (or a later Hermes) pairs only bare characters: wherever R10
+    # removed a backslash, that character is alone on its line.
+    for mine, theirs in zip(ours.split("\n"), without.split("\n"), strict=True):
+        for c in "*_~":
+            if theirs.count("\\" + c) > mine.count("\\" + c):
+                assert mine.count(c) == 1, f"{platform}: {mine!r}"
 
 
 def test_removed_escape_survives_core_plain_text_formatter():
