@@ -59,17 +59,17 @@ Here is the same reply after Lyre, as you would hear it:
     ```
     End of code.
 
-    See the CI run, link: https://ci.example.test/runs/1234 for details
+    See the CI run, link: https://ci.example.test/runs/1234 for details 🎉
 
 ## What changes
 
 - Headings become sentences. Bold, italic and strikethrough markers are removed.
-- Status emoji become words: done, warning, failed, pending, and the colours red, yellow and green. Other emoji are removed.
+- Status emoji become words: done, warning, failed, pending, and the colours red, yellow and green. Other emoji are kept as written, and your screen reader speaks its own name for them, so a flag, a keycap or a star rating is not lost.
 - Tables become sentences, one row at a time, with each value named by its column.
 - Lists announce how many items they have, and nested items say they are sub-items.
 - Code gets a line before it naming the language and length, and "End of code." after it. The code itself is never changed.
 - Links keep their full address after the word "link", so nothing is lost.
-- Replies mostly in a script other than Latin keep their emoji and gain no English words.
+- Replies mostly in a script other than Latin keep all their emoji, status emoji included, and gain no English words.
 
 Code, web addresses, link targets and math are never changed: display math, `$$...$$`, `\(...\)`, `\[...\]` on one line, and `$...$` written tight against its contents (so `$5 and $10` stays ordinary text). A link with a title is left exactly as written, so the title is kept. Box-drawing trees, Braille and anything Lyre cannot read with confidence are left as written.
 
@@ -106,7 +106,10 @@ You can also change these in the Hermes settings for the plugin. Each is listed 
 - Desktop app: off.
 - API, editors and agent-to-agent: off.
 - Verbosity: normal. The choices are brief, normal and full.
-- Emoji: words. The choices are words, remove and keep.
+- Emoji: words. The choices are:
+  - words: status emoji become words and every other emoji is kept as written.
+  - remove: every emoji is removed, status emoji included. This loses information: "The answer is 🇫🇷, not 🇩🇪." becomes "The answer is, not."
+  - keep: emoji are left exactly as written.
 - Tables: sentences. The choices are sentences and unchanged.
 
 ## Limits

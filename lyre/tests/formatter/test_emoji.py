@@ -18,22 +18,54 @@ CASES = [
     ("✅", "(done)"),
     ("⚠\ufe0e", "(warning)"),
     ("✅⚠️🔴", "(done) (warning) (red)"),
-    ("✅ 🎉 ⚠️ 🔴", "(done) (warning) (red)"),
-    ("✅🎉", "(done)"),
+    # A run mixing status and other emoji: status words in place, the rest kept as written.
+    ("✅ 🎉 ⚠️ 🔴", "(done) 🎉 (warning) (red)"),
+    ("✅🎉", "(done) 🎉"),
+    ("🎉✅🎊", "🎉 (done) 🎊"),
+    ("🎉🎊 ✅", "🎉🎊 (done)"),
+    ("Build ✅🚀 shipped", "Build (done) 🚀 shipped"),
+    # Emoji Lyre has no word for are kept byte for byte (ADR 0008).
+    ("🎉 Hello", "🎉 Hello"),
+    ("Hello 🎉 world", "Hello 🎉 world"),
+    ("Hello 🎉🎊  world 🎉", "Hello 🎉🎊  world 🎉"),
+    ("Done 🎉.", "Done 🎉."),
+    ("Status ✅", "Status (done)"),
+    (f"👩🏽{ZWJ}💻 Family 👨{ZWJ}👩{ZWJ}👧{ZWJ}👦 1️⃣ #️⃣ *️⃣ 🏳️{ZWJ}🌈",
+     f"👩🏽{ZWJ}💻 Family 👨{ZWJ}👩{ZWJ}👧{ZWJ}👦 1️⃣ #️⃣ *️⃣ 🏳️{ZWJ}🌈"),
+    ("👍🏽 Text ✨\ufe0e", "👍🏽 Text ✨\ufe0e"),
+    (f"🙂{ZWJ}↔️ Hello 🙂{ZWJ}↕️", f"🙂{ZWJ}↔️ Hello 🙂{ZWJ}↕️"),
+    ("🏴\U000e0067\U000e0062\U000e0065\U000e006e\U000e0067\U000e007f Hello",
+     "🏴\U000e0067\U000e0062\U000e0065\U000e006e\U000e0067\U000e007f Hello"),
+    ("🇯🇵 Tokyo", "🇯🇵 Tokyo"),
+    ("  🎉 Indented  prose\n  🎉 Child", "  🎉 Indented  prose\n  🎉 Child"),
+    ("* 🎉 First\n* ⚠️ Second", "2 items.\n1, 🎉 First\n2, (warning) Second"),
+    ("Heading\n🎉\nNext", "Heading\n🎉\nNext"),
+    ("2 * 3 ✅ ©️ © ↔ ↔️ ⭐ x", "2 * 3 (done) ©️ © ↔ ↔️ ⭐ x"),
+    ("The answer is 🇫🇷, not 🇩🇪.", "The answer is 🇫🇷, not 🇩🇪."),
+    ("Use key 1️⃣ to continue.", "Use key 1️⃣ to continue."),
+    ("Rated ⭐⭐⭐⭐ out of 5", "Rated ⭐⭐⭐⭐ out of 5"),
+    ("Temp 30°C ☀️ today", "Temp 30°C ☀️ today"),
+    ("✅ 🏻 ready", "(done) 🏻 ready"),
+]
+
+REMOVE_CASES = [
+    ("✅ 🎉 ⚠️ 🔴", ""),
+    ("✅ 🎉 ⚠️ 🔴 now", "now"),
     ("🎉 Hello", "Hello"),
     ("Hello 🎉 world", "Hello world"),
     ("Hello 🎉🎊  world 🎉", "Hello world"),
     ("Done 🎉.", "Done."),
-    ("Status ✅", "Status (done)"),
     (f"👩🏽{ZWJ}💻 Family 👨{ZWJ}👩{ZWJ}👧{ZWJ}👦 1️⃣ #️⃣ *️⃣ 🏳️{ZWJ}🌈", "Family"),
     ("👍🏽 Text ✨\ufe0e", "Text"),
     (f"🙂{ZWJ}↔️ Hello 🙂{ZWJ}↕️", "Hello"),
     ("🏴\U000e0067\U000e0062\U000e0065\U000e006e\U000e0067\U000e007f Hello", "Hello"),
     ("🇯🇵 Tokyo", "Tokyo"),
     ("  🎉 Indented  prose\n  🎉 Child", "  Indented  prose\n  Child"),
-    ("* 🎉 First\n* ⚠️ Second", "2 items.\n1, First\n2, (warning) Second"),
+    ("* 🎉 First\n* ⚠️ Second", "2 items.\n1, First\n2, Second"),
     ("Heading\n🎉\nNext", "Heading\nNext"),
-    ("2 * 3 ✅ ©️ © ↔ ↔️ ⭐ x", "2 * 3 (done) © ↔ x"),
+    ("2 * 3 ✅ ©️ © ↔ ↔️ ⭐ x", "2 * 3 © ↔ x"),
+    ("The answer is 🇫🇷, not 🇩🇪.", "The answer is, not."),
+    ("Rated ⭐⭐⭐⭐ out of 5", "Rated out of 5"),
 ]
 
 
@@ -43,6 +75,24 @@ def test_words_policy(text, expected, profile):
     if profile == "markdown" and "*" in text:
         pytest.skip("markdown profile keeps list markers and emphasis; covered elsewhere")
     assert format_for_speech(text, profile=profile) == expected
+
+
+@pytest.mark.parametrize("text,expected", REMOVE_CASES)
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_remove_policy(text, expected, profile):
+    if profile == "markdown" and "*" in text:
+        pytest.skip("markdown profile keeps list markers and emphasis; covered elsewhere")
+    once = format_for_speech(text, profile=profile, emoji_policy="remove")
+    assert once == (expected or text)  # an emoji-only reply falls back to the input
+    assert format_for_speech(once, profile=profile, emoji_policy="remove") == once
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("# 🚀 Deploy\nRun it.", "🚀 Deploy.\nRun it."),
+    ("## ✅ Done\nAll good.", "(done) Done.\nAll good."),
+])
+def test_decorative_heading_emoji_is_kept(text, expected):
+    assert format_for_speech(text, profile="plain") == expected
 
 
 @pytest.mark.parametrize("text", [
@@ -61,6 +111,9 @@ def test_emoji_only_reply_falls_back_to_input():
 
 def test_link_label_keeps_url_emoji():
     out = format_for_speech("🎉 [details](https://example.test/a_✅?x=1)", profile="plain")
+    assert out == "🎉 details, link: https://example.test/a_✅?x=1"
+    out = format_for_speech("🎉 [details](https://example.test/a_✅?x=1)", profile="plain",
+                            emoji_policy="remove")
     assert out == "details, link: https://example.test/a_✅?x=1"
 
 
@@ -73,12 +126,14 @@ def test_keep_policy_skips_the_rule():
     assert format_for_speech(text, profile="plain", emoji_policy="keep") is text
 
 
-def test_non_latin_reply_keeps_status_emoji_and_drops_decoration():
-    assert format_for_speech("Привет ✅ 🎉 мир", profile="plain") == "Привет ✅ мир"
+def test_non_latin_reply_keeps_every_emoji():
+    assert format_for_speech("Привет ✅ 🎉 мир", profile="plain") == "Привет ✅ 🎉 мир"
+    assert format_for_speech("Привет ✅ 🎉 мир", profile="plain", emoji_policy="remove") == "Привет мир"
 
 
-def test_exposed_list_marker_after_removal_is_guarded():
-    assert format_for_speech("🎉 1. Done", profile="plain") == "🎉 1. Done"
+@pytest.mark.parametrize("policy", ["words", "remove"])
+def test_exposed_list_marker_after_removal_is_guarded(policy):
+    assert format_for_speech("🎉 1. Done", profile="plain", emoji_policy=policy) == "🎉 1. Done"
 
 
 @pytest.mark.parametrize("text", [c for c, _ in CASES] + ["Привет ✅ 🎉 мир", "🎉 1. Done"])
@@ -89,7 +144,7 @@ def test_idempotent(text):
 
 @pytest.mark.parametrize("text,plain_out,markdown_out", [
     ("**✅ Done**", "(done) Done", "**(done) Done**"),
-    ("**🎉 Hello**", "Hello", "**Hello**"),
+    ("**🎉 Hello**", "🎉 Hello", "**🎉 Hello**"),
     ("**Done** ✅", "Done (done)", "**Done** (done)"),
     ("**Done**✅", "Done (done)", "**Done** (done)"),
     ("Done ✅**x**", "Done (done) x", "Done (done) **x**"),
@@ -99,14 +154,15 @@ def test_emoji_next_to_emphasis_keeps_delimiters_tight(text, plain_out, markdown
     assert format_for_speech(text, profile="markdown") == markdown_out
 
 
-@pytest.mark.parametrize("text,expected", [
-    ("✅ ◽ ready ◾", "(done) ready"),
-    ("✅ Ⓜ️ Metro", "(done) Metro"),
-    (f"👨{ZWJ}⚕️ doctor ❤{ZWJ}🔥 ok ❤️ love", "doctor ok love"),
-    ("⚠ bare warning ✔ bare", "(warning) bare warning (done) bare"),
+@pytest.mark.parametrize("text,words,removed", [
+    ("✅ ◽ ready ◾", "(done) ◽ ready ◾", "ready"),
+    ("✅ Ⓜ️ Metro", "(done) Ⓜ️ Metro", "Metro"),
+    (f"👨{ZWJ}⚕️ doctor ❤{ZWJ}🔥 ok ❤️ love", f"👨{ZWJ}⚕️ doctor ❤{ZWJ}🔥 ok ❤️ love", "doctor ok love"),
+    ("⚠ bare warning ✔ bare", "(warning) bare warning (done) bare", "bare warning bare"),
 ])
-def test_more_emoji_presentations(text, expected):
-    assert format_for_speech(text, profile="plain") == expected
+def test_more_emoji_presentations(text, words, removed):
+    assert format_for_speech(text, profile="plain") == words
+    assert format_for_speech(text, profile="plain", emoji_policy="remove") == removed
 
 
 @pytest.mark.parametrize("text", [
@@ -120,29 +176,37 @@ def test_text_symbols_are_kept(text):
 
 
 @pytest.mark.parametrize("text", ["☝🏽 Next", "✌🏽 Next", "✍🏽 Next", "⛹🏽 Next"])
-def test_text_default_base_with_skin_tone_removed_whole(text):
-    for policy in ("words", "remove"):
-        assert format_for_speech(text, profile="plain", emoji_policy=policy) == "Next"
+def test_text_default_base_with_skin_tone_is_one_unit(text):
+    assert format_for_speech(text, profile="plain") == text  # kept whole, no orphan tone
+    assert format_for_speech(text, profile="plain", emoji_policy="remove") == "Next"
 
 
 def test_emoji_then_drawing_line_removed_in_one_pass():
     for profile in ("plain", "markdown"):
-        assert format_for_speech("Intro\n🎉 ───\nEnd", profile=profile) == "Intro\nEnd"
+        out = format_for_speech("Intro\n🎉 ───\nEnd", profile=profile, emoji_policy="remove")
+        assert out == "Intro\nEnd"
+        # Under words the emoji is kept, so the line is not drawing-only and stays.
+        assert format_for_speech("Intro\n🎉 ───\nEnd", profile=profile) == "Intro\n🎉 ───\nEnd"
 
 
 def test_emoji_letter_does_not_count_as_script():
     once = format_for_speech("ℹ️ ✅", profile="plain")
-    assert once == "(done)"
+    assert once == "ℹ️ (done)"
     assert format_for_speech(once, profile="plain") == once
 
 
 @pytest.mark.parametrize("text,plain_out,markdown_out", [
     ("(**✅ Done**)", "((done) Done)", "(**(done) Done**)"),
-    ("**Done 🎉**.", "Done.", "**Done**."),
+    ("**Done 🎉**.", "Done 🎉.", "**Done 🎉**."),
 ])
 def test_emphasis_delimiters_beside_punctuation(text, plain_out, markdown_out):
     assert format_for_speech(text, profile="plain") == plain_out
     assert format_for_speech(text, profile="markdown") == markdown_out
+
+
+def test_removed_emoji_beside_closing_delimiter_and_punctuation():
+    assert format_for_speech("**Done 🎉**.", profile="plain", emoji_policy="remove") == "Done."
+    assert format_for_speech("**Done 🎉**.", profile="markdown", emoji_policy="remove") == "**Done**."
 
 
 @pytest.mark.parametrize("text,expected", [
@@ -151,14 +215,15 @@ def test_emphasis_delimiters_beside_punctuation(text, plain_out, markdown_out):
     ("Use 🖥️ and 🛠️ here", "Use and here"),        # emoji with the selector
 ])
 def test_supplementary_text_symbols(text, expected):
-    assert format_for_speech(text, profile="plain") == expected
+    assert format_for_speech(text, profile="plain", emoji_policy="remove") == expected
+    assert format_for_speech(text, profile="plain") == text  # words keeps them all
 
 
 @pytest.mark.parametrize("text,kw,expected", [
-    ("Hello **🎉** world", {}, "Hello world"),
+    ("Hello **🎉** world", {"emoji_policy": "remove"}, "Hello world"),
     ("Hello **✅** world", {"emoji_policy": "remove"}, "Hello world"),
-    ("Hello *🎉*.", {}, "Hello."),
-    ("un*🎉*able", {}, "un able"),
+    ("Hello *🎉*.", {"emoji_policy": "remove"}, "Hello."),
+    ("un*🎉*able", {"emoji_policy": "remove"}, "un able"),
     ("un**✅**able", {"emoji_policy": "remove"}, "un able"),
     ("Hello **✅** world", {}, "Hello (done) world"),
 ])
@@ -172,7 +237,7 @@ def test_emptied_emphasis_wrapper_is_removed(text, kw, expected, profile):
 
 
 @pytest.mark.parametrize("profile", ["plain", "markdown"])
-@pytest.mark.parametrize("policy", ["words", "remove"])
+@pytest.mark.parametrize("policy", ["remove"])
 @pytest.mark.parametrize("marks", ["*", "**", "***"])
 def test_delimiters_of_neighbouring_spans_are_kept(profile, policy, marks):
     text = f"*one*🎉{marks}two{marks}"
@@ -192,7 +257,7 @@ def test_delimiters_of_neighbouring_spans_are_kept(profile, policy, marks):
 @pytest.mark.parametrize("profile", ["plain", "markdown"])
 @pytest.mark.parametrize("policy", ["words", "remove", "keep"])
 def test_emoji_preserves_intraword_asterisk_emphasis(text, plain_out, markdown_out, profile, policy):
-    if policy == "keep":
+    if policy in ("keep", "words"):  # no status emoji: words keeps every emoji, like keep
         expected = text.replace("*", "") if profile == "plain" else text
     else:
         expected = plain_out if profile == "plain" else markdown_out
@@ -224,7 +289,7 @@ def test_status_words_preserve_intraword_asterisk_emphasis(text, plain_out, mark
 @pytest.mark.parametrize("policy", ["words", "remove", "keep"])
 def test_emoji_does_not_reinterpret_literal_intraword_markers(text, expected, profile, policy):
     out = format_for_speech(text, profile=profile, emoji_policy=policy)
-    assert out == (text if policy == "keep" else expected)
+    assert out == (text if policy in ("keep", "words") else expected)
     assert format_for_speech(out, profile=profile, emoji_policy=policy) == out
 
 
@@ -241,14 +306,14 @@ def test_emoji_does_not_reinterpret_literal_intraword_markers(text, expected, pr
      "Use old(removed: 🎉)new instead"),
 ])
 def test_emoji_preserves_intraword_strikethrough(profile, policy, text, removed, kept):
-    expected = kept if policy == "keep" else removed
+    expected = kept if policy in ("keep", "words") else removed
     out = format_for_speech(text, profile=profile, emoji_policy=policy)
     assert out == expected
     assert format_for_speech(out, profile=profile, emoji_policy=policy) == out
 
 
 @pytest.mark.parametrize("profile", ["plain", "markdown"])
-@pytest.mark.parametrize("policy", ["words", "remove"])
+@pytest.mark.parametrize("policy", ["remove"])
 @pytest.mark.parametrize("text,plain_out,markdown_out", [
     ("*🎉hello🎊*world", "helloworld", "*hello*world"),
     ("old*🎉*new *🎊hi*end", "old new hiend", "old new *hi*end"),
@@ -261,7 +326,7 @@ def test_original_pairing_survives_multiple_run_edits(text, plain_out, markdown_
 
 
 @pytest.mark.parametrize("profile", ["plain", "markdown"])
-@pytest.mark.parametrize("policy", ["words", "remove"])
+@pytest.mark.parametrize("policy", ["remove"])
 def test_run_between_word_and_emptied_wrapper_keeps_word_boundary(profile, policy):
     text = "hi🎉**🎉**there"
     out = format_for_speech(text, profile=profile, emoji_policy=policy)
@@ -270,7 +335,7 @@ def test_run_between_word_and_emptied_wrapper_keeps_word_boundary(profile, polic
 
 
 @pytest.mark.parametrize("profile", ["plain", "markdown"])
-@pytest.mark.parametrize("policy", ["words", "remove"])
+@pytest.mark.parametrize("policy", ["remove"])
 @pytest.mark.parametrize("text,plain_out,markdown_out", [
     ("**one🎉**🎊 two", "one two", "**one** two"),
     ("**one🎉**🎊two", "one two", "**one** two"),
@@ -291,7 +356,7 @@ def test_run_delimiters_use_original_line_context(text, plain_out, markdown_out,
     ("*details **important**🎉*", "details important", "*details **important***"),
 ])
 def test_removed_emoji_between_nested_delimiters(text, plain_out, markdown_out, profile, policy):
-    if policy == "keep":
+    if policy in ("keep", "words"):  # no status emoji: words keeps every emoji, like keep
         expected = text.replace("*", "") if profile == "plain" else text
     else:
         expected = plain_out if profile == "plain" else markdown_out
@@ -305,7 +370,7 @@ def test_removed_emoji_between_nested_delimiters(text, plain_out, markdown_out, 
 @pytest.mark.parametrize("policy", ["words", "remove", "keep"])
 def test_standalone_skin_tones_follow_emoji_policy(tone, profile, policy):
     text = f"✅ {tone} ready"
-    expected = text if policy == "keep" else "(done) ready" if policy == "words" else "ready"
+    expected = {"keep": text, "words": f"(done) {tone} ready", "remove": "ready"}[policy]
     out = format_for_speech(text, profile=profile, emoji_policy=policy)
     assert out == expected
     assert format_for_speech(out, profile=profile, emoji_policy=policy) == out
@@ -318,3 +383,80 @@ def test_kept_emoji_spacing_is_left_alone(text, profile):
     # Found by the fuzz tests: a gap decided next to a ``*`` that emphasis later removed.
     once = format_for_speech(text, profile=profile)
     assert format_for_speech(once, profile=profile) == once
+
+
+# Inputs from the delimiter and spacing fixes above, found by fuzzing. They hold no status emoji,
+# so under words the emoji rule leaves them alone and the output matches the keep policy.
+NO_STATUS_INPUTS = [
+    "*one*🎉**two**", "Hello **🎉** world", "Hello *🎉*.", "un*🎉*able", "un*🎉believ*able",
+    "*🎉Hello🎊*world", "这是*🎉强调*文字", "un_🎉believ_able", "2*🎉3*4", "Use old~~🎉~~new instead",
+    "*🎉* *🎊hi*end", "hi🎉**🎉**there", "**one🎉**🎊 two", "one 🎉**🎊two**", "**🎉*important* details**",
+    "[🎉](https://example.test/a) and [✨]: /path", "<b🎉text>", "Intro\n🎉 ───\nEnd",
+]
+
+
+@pytest.mark.parametrize("text", NO_STATUS_INPUTS)
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_words_without_status_emoji_matches_keep(text, profile):
+    out = format_for_speech(text, profile=profile)
+    assert out == format_for_speech(text, profile=profile, emoji_policy="keep")
+    assert format_for_speech(out, profile=profile) == out
+
+
+KEYCAPS = ["*\ufe0f\u20e3", "*\u20e3", "#\ufe0f\u20e3", "#\u20e3", "0\ufe0f\u20e3", "7\u20e3"]
+KEYCAP_LINES = [
+    "Press {k} for help*",
+    "Press {k} for *help*",
+    "Dial {k} and {k}*bold*",
+    "{k}\u2705*x*",
+    "**{k}**",
+    "*{k}*",
+    "{k} Press **x** and *y*",
+    "un*{k}believ*able",
+    "**a {k}** b",
+    "~~{k} old~~ new",
+]
+
+
+@pytest.mark.parametrize("keycap", KEYCAPS)
+@pytest.mark.parametrize("line", KEYCAP_LINES)
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("policy", ["words", "keep"])
+def test_keycap_survives_emphasis_whole(keycap, line, profile, policy):
+    # The keycap's leading ``*`` or ``#`` is part of the emoji, never a delimiter or marker.
+    text = line.format(k=keycap)
+    out = format_for_speech(text, profile=profile, emoji_policy=policy)
+    assert out.count(keycap) == text.count(keycap), repr(out)
+    assert out.count("\u20e3") == text.count("\u20e3"), repr(out)
+    assert format_for_speech(out, profile=profile, emoji_policy=policy) == out
+
+
+@pytest.mark.parametrize("text,plain_out,markdown_out", [
+    ("Press *\ufe0f\u20e3 for help*", "Press *\ufe0f\u20e3 for help*", "Press *\ufe0f\u20e3 for help*"),
+    ("Press *\ufe0f\u20e3 for *help*", "Press *\ufe0f\u20e3 for help", "Press *\ufe0f\u20e3 for *help*"),
+    ("Dial *\ufe0f\u20e3 and *\ufe0f\u20e3*bold*", "Dial *\ufe0f\u20e3 and *\ufe0f\u20e3bold",
+     "Dial *\ufe0f\u20e3 and *\ufe0f\u20e3*bold*"),
+    # Same spacing as ``✅*x*`` -> ``(done) *x*``.
+    ("*\ufe0f\u20e3\u2705*x*", "*\ufe0f\u20e3 (done) x", "*\ufe0f\u20e3 (done) *x*"),
+    ("#\ufe0f\u20e3 Press **x**", "#\ufe0f\u20e3 Press x", "#\ufe0f\u20e3 Press **x**"),
+])
+def test_keycap_beside_emphasis_exact(text, plain_out, markdown_out):
+    assert format_for_speech(text, profile="plain") == plain_out
+    assert format_for_speech(text, profile="markdown") == markdown_out
+
+
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+@pytest.mark.parametrize("tone", [chr(cp) for cp in range(0x1F3FB, 0x1F400)])
+def test_status_emoji_with_skin_tone_becomes_word(profile, tone):
+    assert format_for_speech(f"\u2705{tone} ok", profile=profile) == "(done) ok"
+    assert format_for_speech(f"\u26a0\ufe0f{tone} hot", profile=profile) == "(warning) hot"
+
+
+@pytest.mark.parametrize("text", ["un*🎉✅believ*able", "*one*🎉✅**two**", "hi✅**🎉**there",
+                                  "*✅🎉*", "**🎉✅** done", "~~✅🎉 old~~ new"])
+@pytest.mark.parametrize("profile", ["plain", "markdown"])
+def test_mixed_runs_beside_delimiters(text, profile):
+    out = format_for_speech(text, profile=profile)
+    assert "\u2705" not in out and "(done)" in out
+    assert out.count("🎉") == text.count("🎉")
+    assert format_for_speech(out, profile=profile) == out
